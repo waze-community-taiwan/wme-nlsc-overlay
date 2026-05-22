@@ -5,3 +5,6 @@ playwright-report/
 test-results/
 coverage/
 .env*
+.playwright-profile/
+tests/manual/*.log
+.claude/*

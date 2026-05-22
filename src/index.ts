@@ -1,59 +1,26 @@
+/// <reference types="wme-sdk-typings" />
 /**
- * WME NLSC Overlay — Placeholder entry point
+ * WME NLSC Overlay — Entry point
  *
- * This IIFE script bootstraps the userscript and waits for WME readiness.
- * Phase 0: proves the script loads and WME detection works.
- * Phase 1: SDK initialization and config.
- * Phase 2: tile layer registration and rendering.
- * Phase 3: UI (sidebar panel, LayerSwitcher integration).
+ * Phase 1: gate to top frame, await SDK, acquire WmeSDK handle.
+ * Phase 2: tile layer registration via unsafeWindow.W.map.olMap.
+ * Phase 3: sidebar UI, settings persistence.
  */
 
-(() => {
-  console.log("[wme-nlsc-overlay] loaded");
+const SCRIPT_ID = "wme-nlsc-overlay";
+const SCRIPT_NAME = "WME NLSC Overlay";
 
-  /**
-   * Phase 1 extension point: WME SDK initialization
-   * TODO: call W.map.olMap, set up context, initialize tile layer list
-   */
+(async () => {
+  // WME SDK is never in nested frames; bail to avoid noise.
+  if (window.top !== window.self) return;
+  if (window.location.hostname !== "www.waze.com") return;
 
-  /**
-   * Phase 2 extension point: Tile layer registration
-   * TODO: build NLSC layer sources, register with WME, attach to map
-   */
+  console.log(`[${SCRIPT_ID}] loaded`);
 
-  /**
-   * Phase 3 extension point: UI integration
-   * TODO: sidebar panel, LayerSwitcher, settings persistence
-   */
+  await window.SDK_INITIALIZED;
+  const sdk = window.getWmeSdk!({ scriptId: SCRIPT_ID, scriptName: SCRIPT_NAME });
+  console.log(`[${SCRIPT_ID}] wme ready`, sdk);
 
-  /**
-   * WME readiness detection:
-   * Waits for window.getWmeSdk or fires on wme-ready event.
-   */
-  const w = window as any;
-  if (typeof w.getWmeSdk === "function") {
-    console.log("[wme-nlsc-overlay] wme ready (immediate)");
-  } else {
-    const onWmeReady = () => {
-      console.log("[wme-nlsc-overlay] wme ready (event)");
-      document.removeEventListener("wme-ready", onWmeReady);
-    };
-    document.addEventListener("wme-ready", onWmeReady);
-
-    // Fallback: poll for SDK availability
-    let pollCount = 0;
-    const pollInterval = setInterval(() => {
-      if (typeof w.getWmeSdk === "function") {
-        console.log("[wme-nlsc-overlay] wme ready (poll)");
-        clearInterval(pollInterval);
-        document.removeEventListener("wme-ready", onWmeReady);
-      }
-      pollCount++;
-      if (pollCount > 100) {
-        // 10 seconds timeout
-        clearInterval(pollInterval);
-        console.warn("[wme-nlsc-overlay] timeout waiting for WME");
-      }
-    }, 100);
-  }
+  // Phase 2 extension point: register NLSC tile layers on unsafeWindow.W.map.olMap.
+  // Phase 3 extension point: sidebar panel, LayerSwitcher integration, localStorage settings.
 })();
