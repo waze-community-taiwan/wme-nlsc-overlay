@@ -1,11 +1,14 @@
 /// <reference types="wme-sdk-typings" />
 import { NLSC_LAYERS } from "./layers";
+import { loadState } from "./state";
+import { renderSidebar, type SidebarLayerHandle } from "./sidebar";
 
 /**
  * WME NLSC Overlay — Entry point
  *
- * Phase 1 + 2: gate to top frame, await SDK, acquire WmeSDK handle, register NLSC tile layers on the WME OpenLayers map.
- * Phase 3: sidebar UI, settings persistence.
+ * Phase 1 + 2 + 3: gate to top frame, await SDK, register NLSC tile layers on the WME
+ * OpenLayers map, render sidebar UI with visibility + opacity controls persisted to
+ * localStorage.
  */
 
 const SCRIPT_ID = "wme-nlsc-overlay";
@@ -30,7 +33,11 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     return;
   }
 
+  const state = loadState();
+
   const wmeLayers = NLSC_LAYERS.map((layer) => {
+    const initialVisible = state.visible[layer.code] ?? false;
+    const initialOpacity = state.opacity[layer.code] ?? layer.defaultOpacity;
     const tileLayer = new ol.layer.Tile({
       source: new ol.source.XYZ({
         // NLSC WMTS axis order is /{z}/{y}/{x} — not the standard /{z}/{x}/{y}.
@@ -40,8 +47,8 @@ const SCRIPT_NAME = "WME NLSC Overlay";
         projection: "EPSG:3857",
         crossOrigin: "anonymous",
       }),
-      opacity: layer.defaultOpacity,
-      visible: false,
+      opacity: initialOpacity,
+      visible: initialVisible,
       minZoom: layer.minZoom,
       maxZoom: layer.maxZoom,
     });
@@ -54,5 +61,11 @@ const SCRIPT_NAME = "WME NLSC Overlay";
   (uw as any).__nlscLayers = wmeLayers;
   console.log(`[${SCRIPT_ID}] registered ${wmeLayers.length} NLSC tile layers`);
 
-  // Phase 3 extension point: sidebar panel, LayerSwitcher integration, localStorage settings.
+  const { tabLabel, tabPane } = await sdk.Sidebar.registerScriptTab();
+  const handles: SidebarLayerHandle[] = wmeLayers.map(({ layer, tileLayer }) => ({
+    layer,
+    setVisible: (v) => tileLayer.setVisible(v),
+    setOpacity: (o) => tileLayer.setOpacity(o),
+  }));
+  renderSidebar(tabLabel, tabPane, handles, state);
 })();
