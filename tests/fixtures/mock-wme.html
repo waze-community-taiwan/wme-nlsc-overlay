@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mock WME with OpenLayers</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/ol@latest/dist/ol.min.js"></script>
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/ol@latest/ol.min.css"
+  />
+</head>
+<body>
+  <div id="map" data-testid="map-canvas"></div>
+  <script>
+    // Mock OpenLayers map centered on Taipei
+    const map = new ol.Map({
+      target: "map",
+      layers: [
+        new ol.layer.Tile({
+          source: new ol.source.OSM(),
+        }),
+      ],
+      view: new ol.View({
+        center: ol.proj.fromLonLat([121.565, 25.033]),
+        zoom: 12,
+      }),
+    });
+
+    // Signal that the map is ready (for E2E test)
+    window.mapReady = true;
+  </script>
+</body>
+</html>

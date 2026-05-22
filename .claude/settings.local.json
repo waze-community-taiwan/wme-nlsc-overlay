@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /Users/lawrence/waze-community-taiwan/ 2>&1)",
+      "Bash(ls /Users/lawrence/.claude/memory/ 2>&1 | head -5; ls /Users/lawrence/.claude/projects/-Users-lawrence-waze-community-taiwan-waze-nlsc-overlay/memory/ 2>&1 | head -20)"
+    ]
+  }
+}
