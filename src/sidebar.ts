@@ -1,16 +1,12 @@
 import type { NlscLayer } from "./layers";
-import { saveState, type NlscState } from "./state";
-
-export interface SidebarLayerHandle {
-  layer: NlscLayer;
-  setVisible: (visible: boolean) => void;
-  setOpacity: (opacity: number) => void;
-}
+import type { NlscState } from "./state";
+import type { NlscController } from "./controller";
 
 export function renderSidebar(
   tabLabel: HTMLElement,
   tabPane: HTMLElement,
-  handles: readonly SidebarLayerHandle[],
+  layers: readonly NlscLayer[],
+  controller: NlscController,
   state: NlscState,
 ): void {
   tabLabel.textContent = "NLSC";
@@ -20,14 +16,38 @@ export function renderSidebar(
   heading.style.margin = "8px 0";
   tabPane.appendChild(heading);
 
-  for (const handle of handles) {
-    tabPane.appendChild(renderLayerRow(handle, state));
+  for (const layer of layers) {
+    const refs = renderLayerRow(layer, controller, state);
+    tabPane.appendChild(refs.row);
+
+    controller.onVisibleChange((code, visible) => {
+      if (code !== layer.code) return;
+      if (refs.checkbox.checked !== visible) refs.checkbox.checked = visible;
+    });
+
+    controller.onOpacityChange((code, opacity) => {
+      if (code !== layer.code) return;
+      const pct = Math.round(opacity * 100);
+      if (Number(refs.slider.value) !== pct) {
+        refs.slider.value = String(pct);
+        refs.valueLabel.textContent = `${pct}%`;
+      }
+    });
   }
 }
 
-function renderLayerRow(handle: SidebarLayerHandle, state: NlscState): HTMLElement {
-  const { layer, setVisible, setOpacity } = handle;
+interface RowRefs {
+  row: HTMLElement;
+  checkbox: HTMLInputElement;
+  slider: HTMLInputElement;
+  valueLabel: HTMLElement;
+}
 
+function renderLayerRow(
+  layer: NlscLayer,
+  controller: NlscController,
+  state: NlscState,
+): RowRefs {
   const row = document.createElement("div");
   row.style.margin = "8px 0 14px";
 
@@ -74,18 +94,13 @@ function renderLayerRow(handle: SidebarLayerHandle, state: NlscState): HTMLEleme
   row.appendChild(sliderRow);
 
   checkbox.addEventListener("change", () => {
-    setVisible(checkbox.checked);
-    state.visible[layer.code] = checkbox.checked;
-    saveState(state);
+    controller.setVisible(layer.code, checkbox.checked);
   });
 
   slider.addEventListener("input", () => {
-    const opacity = Number(slider.value) / 100;
-    setOpacity(opacity);
     valueLabel.textContent = `${slider.value}%`;
-    state.opacity[layer.code] = opacity;
-    saveState(state);
+    controller.setOpacity(layer.code, Number(slider.value) / 100);
   });
 
-  return row;
+  return { row, checkbox, slider, valueLabel };
 }

@@ -1,14 +1,15 @@
 /// <reference types="wme-sdk-typings" />
 import { NLSC_LAYERS } from "./layers";
 import { loadState } from "./state";
-import { renderSidebar, type SidebarLayerHandle } from "./sidebar";
+import { renderSidebar } from "./sidebar";
+import { NlscController, type LayerBinding } from "./controller";
 
 /**
  * WME NLSC Overlay — Entry point
  *
- * Phase 1 + 2 + 3: gate to top frame, await SDK, register NLSC tile layers on the WME
+ * Phases 1–4: gate to top frame, await SDK, register NLSC tile layers on the WME
  * OpenLayers map, render sidebar UI with visibility + opacity controls persisted to
- * localStorage.
+ * localStorage, and integrate with the WME LayerSwitcher panel (bidirectional sync).
  */
 
 const SCRIPT_ID = "wme-nlsc-overlay";
@@ -57,15 +58,38 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     return { layer, tileLayer };
   });
 
-  // Dev handle for console debugging (remove in Phase 4).
   (uw as any).__nlscLayers = wmeLayers;
   console.log(`[${SCRIPT_ID}] registered ${wmeLayers.length} NLSC tile layers`);
 
-  const { tabLabel, tabPane } = await sdk.Sidebar.registerScriptTab();
-  const handles: SidebarLayerHandle[] = wmeLayers.map(({ layer, tileLayer }) => ({
+  const bindings: LayerBinding[] = wmeLayers.map(({ layer, tileLayer }) => ({
     layer,
-    setVisible: (v) => tileLayer.setVisible(v),
-    setOpacity: (o) => tileLayer.setOpacity(o),
+    setLayerVisible: (v) => tileLayer.setVisible(v),
+    setLayerOpacity: (o) => tileLayer.setOpacity(o),
   }));
-  renderSidebar(tabLabel, tabPane, handles, state);
+  const controller = new NlscController(state, bindings);
+
+  for (const layer of NLSC_LAYERS) {
+    sdk.LayerSwitcher.addLayerCheckbox({
+      name: layer.name,
+      isChecked: state.visible[layer.code] ?? false,
+    });
+  }
+
+  sdk.Events.on({
+    eventName: "wme-layer-checkbox-toggled",
+    eventHandler: ({ checked, name }) => {
+      const layer = NLSC_LAYERS.find((l) => l.name === name);
+      if (!layer) return;
+      controller.setVisible(layer.code, checked);
+    },
+  });
+
+  controller.onVisibleChange((code, visible) => {
+    const layer = NLSC_LAYERS.find((l) => l.code === code);
+    if (!layer) return;
+    sdk.LayerSwitcher.setLayerCheckboxChecked({ name: layer.name, isChecked: visible });
+  });
+
+  const { tabLabel, tabPane } = await sdk.Sidebar.registerScriptTab();
+  renderSidebar(tabLabel, tabPane, NLSC_LAYERS, controller, state);
 })();
