@@ -45,18 +45,30 @@ For manual testing:
 
 ## Install on Browser
 
-### Method 1 — Drag-and-Drop (Easiest)
+Install one of the userscript managers from **Prerequisites** above first. Then pick a method below.
 
-1. Run `npm run build` to generate `dist/wme-nlsc-overlay.user.js`
-2. With your userscript manager installed, open the file URL `file:///<path-to-repo>/dist/wme-nlsc-overlay.user.js` in the browser, or drag the file onto a browser tab
-3. The userscript manager detects the metablock and prompts for installation — approve it
+### Method 1 — GitHub Release (one-click, recommended for users)
 
-### Method 2 — Tampermonkey Dashboard
+Click the link below; Tampermonkey/Violentmonkey/Greasemonkey detects the `.user.js` URL, opens a confirmation tab showing the script source and `@grant` permissions, and asks you to confirm.
 
-1. Run `npm run build`
-2. Open the Tampermonkey dashboard → "Create a new script"
-3. Replace all contents with the entire text of `dist/wme-nlsc-overlay.user.js`
-4. Save (Ctrl+S or Cmd+S)
+> **Install:** [`https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js)
+
+The `/releases/latest/download/<asset>` path always resolves to the latest published release, so this link does not need to change for new versions. Wire `@updateURL` / `@downloadURL` in the script metablock to the same URL and userscript managers will check for updates automatically (Tampermonkey re-checks on its own schedule, daily by default).
+
+> If the link returns 404, no release has been cut yet — use **Method 3** in the meantime. Maintainers: attach the built `dist/wme-nlsc-overlay.user.js` to a GitHub Release named to match the asset filename.
+
+### Method 2 — Greasy Fork (planned community mirror)
+
+[Greasy Fork](https://greasyfork.org) is the canonical hosting site for Tampermonkey userscripts and the de-facto distribution channel for the [WME script community](https://greasyfork.org/en/scripts/by-site/waze.com). It provides a script page with a green "Install this script" button, version history, ratings, and auto-update — no infrastructure on your side. Once a release is cut, the script will be mirrored there and the link added here.
+
+Acceptance rules (per [Greasy Fork code rules](https://greasyfork.org/en/help/code-rules)): no minified or obfuscated code, ≤2 MB. The Rollup build emits a non-minified IIFE — compatible.
+
+### Method 3 — Build from source (developers, or until a release is published)
+
+1. `npm install && npm run build` — generates `dist/wme-nlsc-overlay.user.js`.
+2. With a userscript manager installed, either:
+   - **Drag-and-drop:** drag `dist/wme-nlsc-overlay.user.js` onto a browser tab, or open `file:///<path-to-repo>/dist/wme-nlsc-overlay.user.js`. The userscript manager detects the metablock and prompts for installation.
+   - **Dashboard paste:** open the Tampermonkey dashboard → "Create a new script" → replace all contents with the file contents → save (Ctrl/Cmd+S).
 
 ## Usage
 
