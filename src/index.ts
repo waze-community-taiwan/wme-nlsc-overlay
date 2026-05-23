@@ -49,9 +49,13 @@ const SCRIPT_NAME = "WME NLSC Overlay";
   // the OL 2.x spherical-mercator default and matches NLSC's GoogleMapsCompatible
   // ScaleDenominator at z=0 (≈ 559082264 * 0.00028 m).
   const WEB_MERCATOR_RES_Z0 = 156543.0339280410;
-  const buildServerResolutions = (minZoom: number, maxZoom: number): number[] => {
+  // OL 2.x XYZ keys `serverResolutions[i]` to OL zoom `i` (0-based) and fills
+  // the URL's `${z}` placeholder with that same index. So the array must always
+  // start at z=0 — if we started at `minZoom`, OL would render the server's
+  // z=minZoom tile at OL zoom 0 and request URL `…/0/y/x`, scrambling tiles.
+  const buildServerResolutions = (maxZoom: number): number[] => {
     const out: number[] = [];
-    for (let z = minZoom; z <= maxZoom; z++) {
+    for (let z = 0; z <= maxZoom; z++) {
       out.push(WEB_MERCATOR_RES_Z0 / Math.pow(2, z));
     }
     return out;
@@ -73,7 +77,7 @@ const SCRIPT_NAME = "WME NLSC Overlay";
       // When WME's map zooms past the layer's real cap, OL clamps to the highest
       // server resolution and upscales that tile, avoiding 404s on non-existent
       // deeper zoom levels. `transitionEffect: 'resize'` smooths the upscale.
-      serverResolutions: buildServerResolutions(layer.minZoom, layer.maxZoom),
+      serverResolutions: buildServerResolutions(layer.maxZoom),
       transitionEffect: "resize",
     });
     tileLayer.nlscCode = layer.code;

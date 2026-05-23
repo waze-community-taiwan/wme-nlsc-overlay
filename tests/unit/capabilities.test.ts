@@ -106,4 +106,34 @@ describe("parseCapabilities maxZoom resolution", () => {
     const [layer] = parseCapabilities(xml);
     expect(layer.maxZoom).toBe(19);
   });
+
+  // Regression: a WMTS server emitting `<wmts:Layer>` / `<wmts:TileMatrixSet>`
+  // would have been silently skipped by `getElementsByTagName` (qualified-name
+  // match). The traversal now uses `getElementsByTagNameNS("*", ...)`.
+  it("parses prefixed <wmts:Layer> / <wmts:TileMatrixSet> elements", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+      <wmts:Capabilities xmlns:wmts="http://www.opengis.net/wmts/1.0"
+                        xmlns:ows="http://www.opengis.net/ows/1.1">
+        <wmts:Contents>
+          <wmts:Layer>
+            <ows:Title>Prefixed</ows:Title>
+            <ows:Identifier>PFX</ows:Identifier>
+            <wmts:Format>image/png</wmts:Format>
+            <wmts:TileMatrixSetLink>
+              <wmts:TileMatrixSet>GoogleMapsCompatible</wmts:TileMatrixSet>
+            </wmts:TileMatrixSetLink>
+          </wmts:Layer>
+          <wmts:TileMatrixSet>
+            <ows:Identifier>GoogleMapsCompatible</ows:Identifier>
+            <wmts:TileMatrix><ows:Identifier>0</ows:Identifier></wmts:TileMatrix>
+            <wmts:TileMatrix><ows:Identifier>17</ows:Identifier></wmts:TileMatrix>
+          </wmts:TileMatrixSet>
+        </wmts:Contents>
+      </wmts:Capabilities>`;
+    const layers = parseCapabilities(xml);
+    expect(layers.length).toBe(1);
+    expect(layers[0].code).toBe("PFX");
+    expect(layers[0].format).toBe("png");
+    expect(layers[0].maxZoom).toBe(17);
+  });
 });

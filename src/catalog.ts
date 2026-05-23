@@ -61,7 +61,9 @@ export function parseCapabilities(xml: string): NlscLayer[] {
 
   const seen = new Set<string>();
   const out: NlscLayer[] = [];
-  for (const el of Array.from(doc.getElementsByTagName("Layer"))) {
+  // `getElementsByTagNameNS("*", localName)` matches by localName across any
+  // namespace, so prefixed forms like `<wmts:Layer>` are also picked up.
+  for (const el of Array.from(doc.getElementsByTagNameNS("*", "Layer"))) {
     const code = directChildText(el, "Identifier");
     if (!code || seen.has(code)) continue;
     seen.add(code);
@@ -88,7 +90,7 @@ export function parseCapabilities(xml: string): NlscLayer[] {
 // they're naturally skipped by the filter below.
 function indexTileMatrixSets(doc: Document): Map<string, number> {
   const out = new Map<string, number>();
-  for (const set of Array.from(doc.getElementsByTagName("TileMatrixSet"))) {
+  for (const set of Array.from(doc.getElementsByTagNameNS("*", "TileMatrixSet"))) {
     const id = directChildText(set, "Identifier");
     if (!id) continue;
     let max = -1;
