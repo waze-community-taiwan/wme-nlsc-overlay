@@ -17,11 +17,13 @@ const server = http.createServer((req, res) => {
     filePath = path.join(__dirname, req.url === "/" ? "mock-wme.html" : req.url);
   }
 
-  // Security: prevent directory traversal.
+  // Security: prevent directory traversal. Anchor the prefix check with
+  // `path.sep` so sibling dirs like `dist-foo/` can't slip past `dist/`.
   const realPath = path.resolve(filePath);
   const fixturesDir = path.resolve(__dirname);
-  const distDir = path.join(repoRoot, "dist");
-  if (!realPath.startsWith(fixturesDir) && !realPath.startsWith(distDir)) {
+  const distDir = path.resolve(repoRoot, "dist");
+  const isUnder = (p, dir) => p === dir || p.startsWith(dir + path.sep);
+  if (!isUnder(realPath, fixturesDir) && !isUnder(realPath, distDir)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
     res.end("Forbidden");
     return;
