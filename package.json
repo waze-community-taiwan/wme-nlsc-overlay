@@ -18,13 +18,13 @@
     "@rollup/plugin-node-resolve": "^16.0.0",
     "@rollup/plugin-typescript": "^12.1.1",
     "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/coverage-v8": "^4.1.7",
     "jsdom": "^27.0.1",
     "rollup": "^4.26.1",
     "rollup-plugin-userscript-metablock": "^0.4.3",
     "tslib": "^2.8.1",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8",
+    "vitest": "^4.1.7",
     "wme-sdk-typings": "https://web-assets.waze.com/wme_sdk_docs/production/latest/wme-sdk-typings.tgz"
   }
 }
