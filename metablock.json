@@ -1,13 +1,18 @@
 {
   "name": "WME NLSC Overlay",
   "namespace": "https://github.com/waze-community-taiwan/wme-nlsc-overlay",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Overlay Taiwan NLSC WMTS tiles in Waze Map Editor",
   "author": "Waze Community Taiwan",
   "license": "MIT",
   "match": "https://www.waze.com/*editor*",
-  "grant": ["unsafeWindow", "GM_xmlhttpRequest"],
-  "connect": ["wmts.nlsc.gov.tw"],
+  "grant": [
+    "unsafeWindow",
+    "GM_xmlhttpRequest"
+  ],
+  "connect": [
+    "wmts.nlsc.gov.tw"
+  ],
   "run-at": "document-idle",
   "downloadURL": "https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js",
   "updateURL": "https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js",
