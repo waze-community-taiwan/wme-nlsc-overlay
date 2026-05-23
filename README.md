@@ -57,9 +57,11 @@ The `/releases/latest/download/<asset>` path always resolves to the latest publi
 
 > If the link returns 404, no release has been cut yet — use **Method 3** in the meantime. Maintainers: see [Cutting a release](#cutting-a-release).
 
-### Method 2 — Greasy Fork (planned community mirror)
+### Method 2 — Greasy Fork (community mirror)
 
-[Greasy Fork](https://greasyfork.org) is the canonical hosting site for Tampermonkey userscripts and the de-facto distribution channel for the [WME script community](https://greasyfork.org/en/scripts/by-site/waze.com). It provides a script page with a green "Install this script" button, version history, ratings, and auto-update — no infrastructure on your side. Once a release is cut, the script will be mirrored there and the link added here.
+[Greasy Fork](https://greasyfork.org) is the canonical hosting site for Tampermonkey userscripts and the de-facto distribution channel for the [WME script community](https://greasyfork.org/en/scripts/by-site/waze.com). It provides a script page with a green "Install this script" button, version history, ratings, and auto-update — no infrastructure on your side.
+
+The Greasy Fork mirror is kept in sync with GitHub Releases via **Sync from URL**: Greasy Fork periodically re-fetches `releases/latest/download/wme-nlsc-overlay.user.js` and republishes any version change automatically. See [Mirroring to Greasy Fork](#mirroring-to-greasy-fork) for the one-time setup.
 
 Acceptance rules (per [Greasy Fork code rules](https://greasyfork.org/en/help/code-rules)): no minified or obfuscated code, ≤2 MB. The Rollup build emits a non-minified IIFE — compatible.
 
@@ -99,7 +101,17 @@ In both cases the workflow:
 3. Builds `dist/wme-nlsc-overlay.user.js`.
 4. Creates the GitHub Release and uploads the built file as the release asset.
 
-For Tampermonkey auto-update to work end-to-end, add `downloadURL` and `updateURL` to `metablock.json` pointing at `https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js` (one-time setup).
+Tampermonkey auto-update is wired through `downloadURL` / `updateURL` in `metablock.json`, both pointing at the `releases/latest/download/...` URL. Users who installed directly from GitHub get updates automatically on Tampermonkey's check schedule.
+
+## Mirroring to Greasy Fork
+
+A Greasy Fork listing auto-syncs from the GitHub release asset — no per-release work needed. **One-time setup:**
+
+1. Cut the first GitHub release (push a `v*.*.*` tag) so `https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js` resolves.
+2. Sign in to [greasyfork.org](https://greasyfork.org) → **Post a new script** → paste the built `.user.js` contents → publish. Use the snippet below for the "Additional info" field.
+3. On the new script's page → **Tools** tab → **Sync script from URL** → set the sync URL to the same `releases/latest/download/...` URL → save.
+
+From this point on, every `v*.*.*` tag pushed to the repo produces a new GitHub Release, and Greasy Fork picks it up automatically on its next sync cycle (usually within a few hours). You can also click **Sync now** on the script's *Sync* page to force an immediate pull.
 
 ## Notes
 
