@@ -55,7 +55,7 @@ Click the link below; Tampermonkey/Violentmonkey/Greasemonkey detects the `.user
 
 The `/releases/latest/download/<asset>` path always resolves to the latest published release, so this link does not need to change for new versions. Wire `@updateURL` / `@downloadURL` in the script metablock to the same URL and userscript managers will check for updates automatically (Tampermonkey re-checks on its own schedule, daily by default).
 
-> If the link returns 404, no release has been cut yet — use **Method 3** in the meantime. Maintainers: attach the built `dist/wme-nlsc-overlay.user.js` to a GitHub Release named to match the asset filename.
+> If the link returns 404, no release has been cut yet — use **Method 3** in the meantime. Maintainers: see [Cutting a release](#cutting-a-release).
 
 ### Method 2 — Greasy Fork (planned community mirror)
 
@@ -78,6 +78,28 @@ After installation, visit **https://www.waze.com/editor** to open WME. The scrip
 - **Opacity slider** for each layer to adjust transparency
 - **Catalog dropdown** to browse and add additional layers from the NLSC provider
 - Visibility and opacity settings **persist** to localStorage across sessions
+
+## Cutting a release
+
+Releases are produced by `.github/workflows/release.yml` and uploaded as a `wme-nlsc-overlay.user.js` asset to a GitHub Release. The latest asset is always reachable at the install URL in **Method 1**.
+
+**Option A — push a tag (recommended):**
+
+```bash
+git tag v0.1.0          # tag must match v*.*.*
+git push origin v0.1.0
+```
+
+**Option B — manual dispatch:** run the **Release** workflow from the Actions tab and provide the version (without the leading `v`, e.g. `0.1.0`).
+
+In both cases the workflow:
+
+1. Runs `npm test` (unit tests must pass).
+2. Rewrites `metablock.json` `version` field to match the tag — the tag is the source of truth, so you do not need to bump `metablock.json` by hand.
+3. Builds `dist/wme-nlsc-overlay.user.js`.
+4. Creates the GitHub Release and uploads the built file as the release asset.
+
+For Tampermonkey auto-update to work end-to-end, add `downloadURL` and `updateURL` to `metablock.json` pointing at `https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js` (one-time setup).
 
 ## Notes
 

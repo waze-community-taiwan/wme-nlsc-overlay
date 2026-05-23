@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (without leading v, e.g. 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v${VERSION}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Sync metablock version with tag
+        run: |
+          tmp=$(mktemp)
+          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' metablock.json > "$tmp"
+          mv "$tmp" metablock.json
+          echo "metablock.json after sync:"
+          cat metablock.json
+
+      - name: Build userscript
+        run: npm run build
+
+      - name: Verify build artifact
+        run: |
+          test -f dist/wme-nlsc-overlay.user.js
+          echo "Metablock header:"
+          head -n 30 dist/wme-nlsc-overlay.user.js
+          grep -q "^// @version *${{ steps.version.outputs.version }}$" dist/wme-nlsc-overlay.user.js
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          NOTES="Automated release of \`wme-nlsc-overlay.user.js\` version ${{ steps.version.outputs.version }}.
+
+          **Install:** [\`wme-nlsc-overlay.user.js\`](https://github.com/${{ github.repository }}/releases/latest/download/wme-nlsc-overlay.user.js) — click the link with Tampermonkey/Violentmonkey/Greasemonkey installed.
+
+          See [README](https://github.com/${{ github.repository }}#install-on-browser) for full install instructions."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/wme-nlsc-overlay.user.js --clobber
+            gh release edit "$TAG" --notes "$NOTES"
+          else
+            gh release create "$TAG" \
+              dist/wme-nlsc-overlay.user.js \
+              --title "$TAG" \
+              --notes "$NOTES"
+          fi
