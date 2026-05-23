@@ -6,9 +6,18 @@ on:
       - "v*.*.*"
   workflow_dispatch:
     inputs:
+      bump:
+        description: "Version bump level (used when 'version' is empty)"
+        required: false
+        type: choice
+        default: minor
+        options:
+          - patch
+          - minor
+          - major
       version:
-        description: "Version to release (without leading v, e.g. 0.1.0)"
-        required: true
+        description: "Explicit version override (without leading v, e.g. 0.1.0). Leave empty to auto-bump from package.json."
+        required: false
         type: string
 
 permissions:
@@ -24,19 +33,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Resolve version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.version }}"
-            TAG="v${VERSION}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-            VERSION="${TAG#v}"
-          fi
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+        with:
+          # Full history so the auto-bump path can push commits back to the branch.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -45,12 +44,60 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
+        # Runs before resolve-version so `npm version` can update
+        # package-lock.json against the installed module tree.
         run: npm ci
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          EVENT="${{ github.event_name }}"
+          BUMP="${{ inputs.bump }}"
+          OVERRIDE="${{ inputs.version }}"
+
+          if [ "$EVENT" = "push" ]; then
+            # Tag-push path: tag is authoritative, package.json on disk is
+            # left untouched (it may drift from the tag — workflow_dispatch
+            # is the supported path for keeping it synced).
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+            COMMIT_BACK="false"
+          else
+            # workflow_dispatch path. `npm version` writes both package.json
+            # and package-lock.json; --no-git-tag-version skips commit/tag
+            # (we do those explicitly later so they include metablock.json).
+            if [ -n "$OVERRIDE" ]; then
+              npm version "$OVERRIDE" --no-git-tag-version --allow-same-version >/dev/null
+              VERSION="$OVERRIDE"
+            else
+              npm version "$BUMP" --no-git-tag-version >/dev/null
+              VERSION=$(node -p "require('./package.json').version")
+            fi
+            TAG="v${VERSION}"
+            COMMIT_BACK="true"
+            if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+              echo "::error::Tag ${TAG} already exists. Pick a different version or bump level."
+              exit 1
+            fi
+          fi
+
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$'; then
+            echo "::error::Computed version '$VERSION' is not SemVer-ish."
+            exit 1
+          fi
+
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "commit_back=${COMMIT_BACK}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved: VERSION=${VERSION} TAG=${TAG} COMMIT_BACK=${COMMIT_BACK}"
 
       - name: Run unit tests
         run: npm test
 
-      - name: Sync metablock version with tag
+      - name: Sync metablock version
         run: |
           tmp=$(mktemp)
           jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' metablock.json > "$tmp"
@@ -67,6 +114,32 @@ jobs:
           echo "Metablock header:"
           head -n 30 dist/wme-nlsc-overlay.user.js
           grep -q "^// @version *${{ steps.version.outputs.version }}$" dist/wme-nlsc-overlay.user.js
+
+      - name: Commit bump and push tag
+        if: steps.version.outputs.commit_back == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE}" != "branch" ]; then
+            echo "::error::workflow_dispatch ran on ${GITHUB_REF_TYPE} '${GITHUB_REF_NAME}', expected a branch."
+            exit 1
+          fi
+          BRANCH="${GITHUB_REF_NAME}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add package.json package-lock.json metablock.json
+          if git diff --cached --quiet; then
+            echo "No version changes to commit (idempotent re-run?)."
+          else
+            git commit -m "chore(release): ${TAG}"
+            git push origin "HEAD:${BRANCH}"
+          fi
+
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
 
       - name: Create or update GitHub Release
         env:
