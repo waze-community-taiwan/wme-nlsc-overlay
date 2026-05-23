@@ -24,12 +24,13 @@ it("add-button appends a new row when a catalog option is selected", () => {
   const defaultLayer = makeLayer("EMAP5", "EMAP5 · jpeg · default");
   const catalogLayer = makeLayer("CATALOG_A", "CATALOG_A · jpeg · catalog A");
 
-  const state: NlscState = { visible: {}, opacity: {}, userLayers: [] };
+  const state: NlscState = { visible: {}, opacity: {}, color: {}, userLayers: [] };
   const controller = new NlscController(state, [
     {
       layer: defaultLayer,
       setLayerVisible: vi.fn(),
       setLayerOpacity: vi.fn(),
+      setLayerColor: vi.fn(),
     },
   ]);
 
@@ -39,6 +40,7 @@ it("add-button appends a new row when a catalog option is selected", () => {
         layer: catalogLayer,
         setLayerVisible: vi.fn(),
         setLayerOpacity: vi.fn(),
+        setLayerColor: vi.fn(),
       });
       return catalogLayer;
     }
