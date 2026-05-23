@@ -2,12 +2,14 @@
 export interface NlscState {
   visible: Record<string, boolean>;
   opacity: Record<string, number>;
+  /** Catalog layer codes the user has added beyond the built-in defaults. */
+  userLayers: string[];
 }
 
 const STORAGE_KEY = "wme-nlsc-overlay:state";
 
 function emptyState(): NlscState {
-  return { visible: {}, opacity: {} };
+  return { visible: {}, opacity: {}, userLayers: [] };
 }
 
 export function loadState(): NlscState {
@@ -24,6 +26,10 @@ export function loadState(): NlscState {
         parsed && typeof parsed.opacity === "object" && parsed.opacity !== null
           ? (parsed.opacity as Record<string, number>)
           : {},
+      userLayers:
+        parsed && Array.isArray(parsed.userLayers)
+          ? parsed.userLayers.filter((c): c is string => typeof c === "string")
+          : [],
     };
   } catch {
     return emptyState();

@@ -47,6 +47,14 @@ export class NlscController {
     for (const fn of this.opListeners) fn(code, opacity);
   }
 
+  addBinding(binding: LayerBinding): void {
+    this.byCode.set(binding.layer.code, binding);
+  }
+
+  removeBinding(code: string): void {
+    this.byCode.delete(code);
+  }
+
   onVisibleChange(handler: VisibilityListener): void {
     this.visListeners.push(handler);
   }

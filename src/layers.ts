@@ -18,11 +18,19 @@ export interface NlscLayer {
 
 const NLSC_ATTRIBUTION = "© 內政部國土測繪中心 NLSC";
 
-/** NLSC WMTS layer definitions. */
+/** Default NLSC WMTS layers — always present, not removable. */
 export const NLSC_LAYERS: readonly NlscLayer[] = [
   {
+    code: "EMAP5",
+    name: "台灣通用電子地圖 (EMAP5)",
+    minZoom: 0,
+    maxZoom: 22,
+    attribution: NLSC_ATTRIBUTION,
+    defaultOpacity: 0.5,
+  },
+  {
     code: "EMAP2",
-    name: "電子地圖 (EMAP2)",
+    name: "台灣通用電子地圖 (EMAP2)",
     minZoom: 0,
     maxZoom: 22,
     attribution: NLSC_ATTRIBUTION,
@@ -44,4 +52,14 @@ export const NLSC_LAYERS: readonly NlscLayer[] = [
     attribution: NLSC_ATTRIBUTION,
     defaultOpacity: 0.7,
   },
+  {
+    code: "LANDSECT2",
+    name: "地段外圍圖 (LANDSECT2)",
+    minZoom: 0,
+    maxZoom: 22,
+    attribution: NLSC_ATTRIBUTION,
+    defaultOpacity: 0.7,
+  },
 ];
+
+export { NLSC_ATTRIBUTION };

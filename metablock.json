@@ -5,6 +5,7 @@
   "description": "Overlay Taiwan NLSC WMTS tiles in Waze Map Editor",
   "author": "Waze Community Taiwan",
   "match": "https://www.waze.com/*editor*",
-  "grant": "unsafeWindow",
+  "grant": ["unsafeWindow", "GM_xmlhttpRequest"],
+  "connect": ["wmts.nlsc.gov.tw"],
   "run-at": "document-idle"
 }
