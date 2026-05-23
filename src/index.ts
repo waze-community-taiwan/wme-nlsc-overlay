@@ -4,6 +4,7 @@ import { fetchCatalog } from "./catalog";
 import { loadState, saveState } from "./state";
 import { renderSidebar } from "./sidebar";
 import { NlscController, type LayerBinding } from "./controller";
+import { filterForColor } from "./tint";
 
 /**
  * WME NLSC Overlay — Entry point
@@ -61,10 +62,24 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     return out;
   };
 
+  // OL 2.x layers create `this.div` during initialize, so `.div` is available
+  // immediately after construction — we can apply the SVG tint filter before
+  // the layer is even added to the map.
+  const applyFilter = (tileLayer: any, code: string, color: string | null): void => {
+    const div = tileLayer.div as HTMLElement | undefined;
+    if (!div) return;
+    div.style.filter = filterForColor(code, color);
+  };
+
   // NLSC WMTS axis order is /{z}/{y}/{x} — not slippy /{z}/{x}/{y}. OL 2.x
   // XYZ expands `${z}` / `${x}` / `${y}` placeholders verbatim, so swapping
   // x and y in the template handles the axis order naturally.
-  const createTileLayer = (layer: NlscLayer, visible: boolean, opacity: number): any => {
+  const createTileLayer = (
+    layer: NlscLayer,
+    visible: boolean,
+    opacity: number,
+    color: string | null,
+  ): any => {
     const urlTemplate =
       `https://wmts.nlsc.gov.tw/wmts/${layer.code}/default/GoogleMapsCompatible/\${z}/\${y}/\${x}`;
     const tileLayer = new OL.Layer.XYZ(layer.name, urlTemplate, {
@@ -82,6 +97,7 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     });
     tileLayer.nlscCode = layer.code;
     olMap.addLayer(tileLayer);
+    applyFilter(tileLayer, layer.code, color);
     return tileLayer;
   };
 
@@ -89,12 +105,14 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     layer,
     setLayerVisible: (v) => tileLayer.setVisibility(v),
     setLayerOpacity: (o) => tileLayer.setOpacity(o),
+    setLayerColor: (c) => applyFilter(tileLayer, layer.code, c),
   });
 
   const defaultEntries = NLSC_LAYERS.map((layer) => {
     const initialVisible = state.visible[layer.code] ?? false;
     const initialOpacity = state.opacity[layer.code] ?? layer.defaultOpacity;
-    const tileLayer = createTileLayer(layer, initialVisible, initialOpacity);
+    const initialColor = state.color[layer.code] ?? null;
+    const tileLayer = createTileLayer(layer, initialVisible, initialOpacity, initialColor);
     return { layer, tileLayer };
   });
 
@@ -139,8 +157,13 @@ const SCRIPT_NAME = "WME NLSC Overlay";
   // each OL layer so we can remove it when the user deletes the row.
   const userTileLayers = new Map<string, any>();
 
-  const registerCatalogLayer = (layer: NlscLayer, visible: boolean, opacity: number): void => {
-    const tileLayer = createTileLayer(layer, visible, opacity);
+  const registerCatalogLayer = (
+    layer: NlscLayer,
+    visible: boolean,
+    opacity: number,
+    color: string | null,
+  ): void => {
+    const tileLayer = createTileLayer(layer, visible, opacity, color);
     userTileLayers.set(layer.code, tileLayer);
     controller.addBinding(bindingFor(layer, tileLayer));
     safeAddCheckbox(layer.name, visible);
@@ -151,7 +174,8 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     if (!layer) continue;
     const visible = state.visible[code] ?? false;
     const opacity = state.opacity[code] ?? layer.defaultOpacity;
-    registerCatalogLayer(layer, visible, opacity);
+    const color = state.color[code] ?? null;
+    registerCatalogLayer(layer, visible, opacity, color);
   }
 
   // Resolve a layer (default or catalog) by checkbox name / code for bidirectional sync.
@@ -182,7 +206,8 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     if (!layer) return null;
     const visible = state.visible[code] ?? true;
     const opacity = state.opacity[code] ?? layer.defaultOpacity;
-    registerCatalogLayer(layer, visible, opacity);
+    const color = state.color[code] ?? null;
+    registerCatalogLayer(layer, visible, opacity, color);
     if (!state.userLayers.includes(code)) state.userLayers.push(code);
     state.visible[code] = visible;
     state.opacity[code] = opacity;
@@ -208,6 +233,7 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     state.userLayers = state.userLayers.filter((c) => c !== code);
     delete state.visible[code];
     delete state.opacity[code];
+    delete state.color[code];
     saveState(state);
   };
 

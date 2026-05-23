@@ -22,7 +22,7 @@ const NLSC_STYLES = `
 .nlsc-btn-primary:hover { background: #2558b5; }
 .nlsc-btn-primary:active { background: #1f4895; transform: scale(0.97); }
 
-.nlsc-card { margin: 6px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--hairline, rgba(128,128,128,0.2)); }
+.nlsc-card { position: relative; margin: 6px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--hairline, rgba(128,128,128,0.2)); }
 .nlsc-row-header { display: flex; align-items: center; gap: 10px; }
 .nlsc-name { display: flex; flex-direction: column; flex: 1; min-width: 0; word-break: break-word; line-height: 1.25; }
 .nlsc-name-title { font-weight: 600; }
@@ -46,8 +46,28 @@ const NLSC_STYLES = `
 .nlsc-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(45,108,223,0.3); }
 .nlsc-value { min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; opacity: 0.75; }
 
+.nlsc-swatch { width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; border: 1px solid rgba(128,128,128,0.4); background: transparent; cursor: pointer; padding: 0; position: relative; transition: transform 0.05s, box-shadow 0.15s; }
+.nlsc-swatch:hover { box-shadow: 0 0 0 3px rgba(45,108,223,0.18); }
+.nlsc-swatch:active { transform: scale(0.94); }
+.nlsc-swatch[data-original="true"]::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: linear-gradient(135deg, transparent 45%, rgba(128,128,128,0.7) 47%, rgba(128,128,128,0.7) 53%, transparent 55%); }
+
+.nlsc-popover { position: absolute; right: 10px; top: 38px; z-index: 10; padding: 10px; border-radius: 10px; background: var(--background_default, #fff); border: 1px solid var(--hairline, rgba(128,128,128,0.3)); box-shadow: 0 6px 20px rgba(0,0,0,0.18); display: none; }
+.nlsc-popover.open { display: block; }
+.nlsc-popover-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.nlsc-popover-row + .nlsc-popover-row { margin-top: 8px; }
+.nlsc-chip { width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(128,128,128,0.35); cursor: pointer; padding: 0; transition: transform 0.05s, box-shadow 0.15s; }
+.nlsc-chip:hover { box-shadow: 0 0 0 3px rgba(45,108,223,0.18); }
+.nlsc-chip:active { transform: scale(0.92); }
+.nlsc-chip.selected { box-shadow: 0 0 0 2px var(--background_default, #fff), 0 0 0 4px #2d6cdf; }
+.nlsc-chip-original { background: transparent; position: relative; }
+.nlsc-chip-original::after { content: ""; position: absolute; inset: 2px; border-radius: 50%; background: linear-gradient(135deg, transparent 45%, rgba(128,128,128,0.7) 47%, rgba(128,128,128,0.7) 53%, transparent 55%); }
+.nlsc-popover-label { font-size: 11px; opacity: 0.7; margin-right: 4px; }
+.nlsc-color-input { width: 28px; height: 22px; border: 1px solid rgba(128,128,128,0.35); border-radius: 4px; padding: 0; background: transparent; cursor: pointer; }
+
 [wz-theme="dark"] .nlsc-toggle-slider { background-color: rgba(120,120,128,0.5); }
 [wz-theme="dark"] .nlsc-card { border-color: rgba(255,255,255,0.1); }
+[wz-theme="dark"] .nlsc-popover { background: #1f2024; border-color: rgba(255,255,255,0.12); }
+[wz-theme="dark"] .nlsc-chip.selected { box-shadow: 0 0 0 2px #1f2024, 0 0 0 4px #2d6cdf; }
 `;
 
 function injectStyles(): void {
@@ -57,6 +77,12 @@ function injectStyles(): void {
   style.id = STYLE_ID;
   style.textContent = NLSC_STYLES;
   document.head.appendChild(style);
+  // One global listener closes any open color popover on outside click.
+  document.addEventListener("click", () => {
+    for (const el of document.querySelectorAll(".nlsc-popover.open")) {
+      el.classList.remove("open");
+    }
+  });
 }
 
 export function renderSidebar(
@@ -157,6 +183,125 @@ interface RowRefs {
   checkbox: HTMLInputElement;
   slider: HTMLInputElement;
   valueLabel: HTMLElement;
+  updateColorUi: (color: string | null) => void;
+}
+
+/** High-contrast presets chosen to remain readable over Waze's dark satellite imagery. */
+const PRESET_COLORS: readonly string[] = [
+  "#ff3b30", // red
+  "#ff9500", // orange
+  "#ffcc00", // yellow
+  "#34c759", // lime
+  "#00c7ff", // cyan
+  "#ff2d92", // magenta
+];
+
+function normalizeHex(value: string): string | null {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(value.trim());
+  return m ? `#${m[1].toLowerCase()}` : null;
+}
+
+function renderColorControl(
+  layer: NlscLayer,
+  state: NlscState,
+  controller: NlscController,
+): { swatch: HTMLButtonElement; popover: HTMLElement; updateUi: (color: string | null) => void } {
+  const initial = state.color[layer.code] ?? null;
+
+  const swatch = document.createElement("button");
+  swatch.type = "button";
+  swatch.className = "nlsc-swatch";
+  swatch.title = "顏色";
+
+  const popover = document.createElement("div");
+  popover.className = "nlsc-popover";
+
+  const chipRow = document.createElement("div");
+  chipRow.className = "nlsc-popover-row";
+
+  const originalChip = document.createElement("button");
+  originalChip.type = "button";
+  originalChip.className = "nlsc-chip nlsc-chip-original";
+  originalChip.title = "原色";
+  originalChip.dataset.color = "";
+  chipRow.appendChild(originalChip);
+
+  const presetChips: HTMLButtonElement[] = [];
+  for (const hex of PRESET_COLORS) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "nlsc-chip";
+    chip.style.backgroundColor = hex;
+    chip.title = hex;
+    chip.dataset.color = hex;
+    chipRow.appendChild(chip);
+    presetChips.push(chip);
+  }
+  popover.appendChild(chipRow);
+
+  const customRow = document.createElement("div");
+  customRow.className = "nlsc-popover-row";
+  const customLabel = document.createElement("span");
+  customLabel.className = "nlsc-popover-label";
+  customLabel.textContent = "自訂";
+  const colorInput = document.createElement("input");
+  colorInput.type = "color";
+  colorInput.className = "nlsc-color-input";
+  colorInput.value = initial ?? "#ff3b30";
+  customRow.appendChild(customLabel);
+  customRow.appendChild(colorInput);
+  popover.appendChild(customRow);
+
+  const allChips = [originalChip, ...presetChips];
+  const updateUi = (color: string | null): void => {
+    const normalized = color ? color.toLowerCase() : null;
+    if (normalized) {
+      swatch.style.backgroundColor = normalized;
+      swatch.removeAttribute("data-original");
+    } else {
+      swatch.style.backgroundColor = "transparent";
+      swatch.setAttribute("data-original", "true");
+    }
+    for (const chip of allChips) {
+      const chipColor = chip.dataset.color || null;
+      chip.classList.toggle("selected", (chipColor || null) === normalized);
+    }
+    if (normalized) colorInput.value = normalized;
+  };
+  updateUi(initial);
+
+  const setAndClose = (color: string | null): void => {
+    controller.setColor(layer.code, color);
+    popover.classList.remove("open");
+  };
+
+  for (const chip of allChips) {
+    chip.addEventListener("click", () => {
+      const value = chip.dataset.color || "";
+      setAndClose(value ? value : null);
+    });
+  }
+
+  // Native color input fires `input` continuously while dragging; commit on
+  // `change` (release / popover close) to avoid hammering localStorage.
+  colorInput.addEventListener("input", () => {
+    const normalized = normalizeHex(colorInput.value);
+    if (normalized) controller.setColor(layer.code, normalized);
+  });
+  // Stop clicks inside the popover from bubbling to the document-level closer.
+  popover.addEventListener("click", (e) => e.stopPropagation());
+
+  swatch.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = !popover.classList.contains("open");
+    // Close any other open popovers in the panel.
+    for (const el of document.querySelectorAll(".nlsc-popover.open")) {
+      el.classList.remove("open");
+    }
+    if (willOpen) popover.classList.add("open");
+  });
+
+  return { swatch, popover, updateUi };
 }
 
 function renderLayerRow(
@@ -202,6 +347,9 @@ function renderLayerRow(
 
   headerRow.appendChild(nameWrap);
 
+  const colorCtl = renderColorControl(layer, state, controller);
+  headerRow.appendChild(colorCtl.swatch);
+
   if (onRemove) {
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
@@ -213,6 +361,7 @@ function renderLayerRow(
   }
 
   row.appendChild(headerRow);
+  row.appendChild(colorCtl.popover);
 
   const sliderRow = document.createElement("div");
   sliderRow.className = "nlsc-slider-row";
@@ -243,7 +392,7 @@ function renderLayerRow(
     controller.setOpacity(layer.code, Number(slider.value) / 100);
   });
 
-  return { row, checkbox, slider, valueLabel };
+  return { row, checkbox, slider, valueLabel, updateColorUi: colorCtl.updateUi };
 }
 
 function wireRowListeners(
@@ -263,5 +412,10 @@ function wireRowListeners(
       refs.slider.value = String(pct);
       refs.valueLabel.textContent = `${pct}%`;
     }
+  });
+
+  controller.onColorChange((code, color) => {
+    if (code !== layer.code) return;
+    refs.updateColorUi(color);
   });
 }

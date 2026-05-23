@@ -55,13 +55,14 @@ function setupRealAddFlow(opts: {
       checkboxes.add(name);
     });
 
-  const state: NlscState = { visible: {}, opacity: {}, userLayers: [] };
+  const state: NlscState = { visible: {}, opacity: {}, color: {}, userLayers: [] };
 
   // Build controller seeded with default-layer bindings.
   const defaultBindings: LayerBinding[] = opts.defaultLayers.map((layer) => ({
     layer,
     setLayerVisible: vi.fn(),
     setLayerOpacity: vi.fn(),
+    setLayerColor: vi.fn(),
   }));
   const controller = new NlscController(state, defaultBindings);
 
@@ -93,6 +94,7 @@ function setupRealAddFlow(opts: {
       layer,
       setLayerVisible: tileLayer.setVisibility,
       setLayerOpacity: tileLayer.setOpacity,
+      setLayerColor: vi.fn(),
     });
     safeAddCheckbox(layer.name, visible);
   };

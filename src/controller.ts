@@ -5,20 +5,24 @@ export interface LayerBinding {
   layer: NlscLayer;
   setLayerVisible: (visible: boolean) => void;
   setLayerOpacity: (opacity: number) => void;
+  /** Apply a tint color (`#RRGGBB`) or clear it back to the original tile colors. */
+  setLayerColor: (color: string | null) => void;
 }
 
 export type VisibilityListener = (code: string, visible: boolean) => void;
 export type OpacityListener = (code: string, opacity: number) => void;
+export type ColorListener = (code: string, color: string | null) => void;
 
 /**
- * Single source of truth for layer visibility/opacity. Both the sidebar and the
- * WME LayerSwitcher route their user actions through this controller; listeners
- * fan changes back out so each UI surface mirrors the others.
+ * Single source of truth for layer visibility/opacity/color. Both the sidebar
+ * and the WME LayerSwitcher route their user actions through this controller;
+ * listeners fan changes back out so each UI surface mirrors the others.
  */
 export class NlscController {
   private readonly byCode: Map<string, LayerBinding>;
   private readonly visListeners: VisibilityListener[] = [];
   private readonly opListeners: OpacityListener[] = [];
+  private readonly colorListeners: ColorListener[] = [];
 
   constructor(
     private readonly state: NlscState,
@@ -47,6 +51,16 @@ export class NlscController {
     for (const fn of this.opListeners) fn(code, opacity);
   }
 
+  setColor(code: string, color: string | null): void {
+    const b = this.byCode.get(code);
+    if (!b) return;
+    if ((this.state.color[code] ?? null) === color) return;
+    b.setLayerColor(color);
+    this.state.color[code] = color;
+    saveState(this.state);
+    for (const fn of this.colorListeners) fn(code, color);
+  }
+
   addBinding(binding: LayerBinding): void {
     this.byCode.set(binding.layer.code, binding);
   }
@@ -61,5 +75,9 @@ export class NlscController {
 
   onOpacityChange(handler: OpacityListener): void {
     this.opListeners.push(handler);
+  }
+
+  onColorChange(handler: ColorListener): void {
+    this.colorListeners.push(handler);
   }
 }
