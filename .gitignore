@@ -8,3 +8,4 @@ coverage/
 .playwright-profile/
 tests/manual/*.log
 .claude/*
+.playwright*

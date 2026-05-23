@@ -6,9 +6,22 @@ export interface NlscLayer {
   code: string;
   /** Human-readable display name shown in the WME sidebar dropdown. */
   name: string;
-  /** Minimum zoom level the layer renders at. */
+  /** WMTS layer Title (display only). */
+  title: string;
+  /** Tile image format, lowercase short form: "jpeg" or "png". */
+  format: "jpeg" | "png";
+  /** Minimum zoom level the server publishes tiles for. */
   minZoom: number;
-  /** Maximum zoom level the layer renders at. */
+  /**
+   * Maximum zoom level the server publishes tiles for. WME's editor map zooms
+   * past this on close-up views; the OL layer is configured with matching
+   * `serverResolutions` so it upscales the deepest tile instead of issuing
+   * 404s for non-existent zoom levels.
+   *
+   * NLSC's shared `GoogleMapsCompatible` TileMatrixSet currently defines
+   * z=0..19, so defaults below use 19. Catalog layers inherit the real cap
+   * from `WMTSCapabilities.xml` at fetch time.
+   */
   maxZoom: number;
   /** Attribution text shown on the map. */
   attribution: string;
@@ -22,41 +35,51 @@ const NLSC_ATTRIBUTION = "© 內政部國土測繪中心 NLSC";
 export const NLSC_LAYERS: readonly NlscLayer[] = [
   {
     code: "EMAP5",
-    name: "台灣通用電子地圖 (EMAP5)",
+    title: "臺灣通用電子地圖(等高線+門牌)",
+    format: "jpeg",
+    name: "EMAP5 · jpeg · 臺灣通用電子地圖(等高線+門牌)",
     minZoom: 0,
-    maxZoom: 22,
+    maxZoom: 19,
     attribution: NLSC_ATTRIBUTION,
     defaultOpacity: 0.5,
   },
   {
     code: "EMAP2",
-    name: "台灣通用電子地圖 (EMAP2)",
+    title: "臺灣通用電子地圖透明",
+    format: "png",
+    name: "EMAP2 · png · 臺灣通用電子地圖透明",
     minZoom: 0,
-    maxZoom: 22,
+    maxZoom: 19,
     attribution: NLSC_ATTRIBUTION,
     defaultOpacity: 0.5,
   },
   {
     code: "TOWN",
-    name: "鄉鎮界 (TOWN)",
+    title: "鄉鎮區界",
+    format: "png",
+    name: "TOWN · png · 鄉鎮區界",
     minZoom: 0,
-    maxZoom: 22,
+    maxZoom: 19,
     attribution: NLSC_ATTRIBUTION,
     defaultOpacity: 0.7,
   },
   {
     code: "CITY",
-    name: "縣市界 (CITY)",
+    title: "縣市界",
+    format: "png",
+    name: "CITY · png · 縣市界",
     minZoom: 0,
-    maxZoom: 22,
+    maxZoom: 19,
     attribution: NLSC_ATTRIBUTION,
     defaultOpacity: 0.7,
   },
   {
     code: "LANDSECT2",
-    name: "地段外圍圖 (LANDSECT2)",
+    title: "地段外圍圖(段籍圖)(類別)",
+    format: "png",
+    name: "LANDSECT2 · png · 地段外圍圖(段籍圖)(類別)",
     minZoom: 0,
-    maxZoom: 22,
+    maxZoom: 19,
     attribution: NLSC_ATTRIBUTION,
     defaultOpacity: 0.7,
   },

@@ -75,7 +75,12 @@ edgeProc.on('exit', (code) => log('harness', `Edge process exited with code ${co
 await waitForPort(CDP_PORT);
 log('harness', `CDP endpoint open on :${CDP_PORT}, attaching Playwright`);
 
-const browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
+// `noDefaults: true` tells Playwright to skip its initialization overrides on
+// the existing default context — most importantly the `Browser.setDownloadBehavior`
+// CDP call, which Edge stable (148+) rejects with "Browser context management
+// is not supported" when attached to a user-launched browser. The option is
+// documented for exactly this "daily-driver attach" scenario.
+const browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`, { noDefaults: true });
 const context = browser.contexts()[0] ?? (await browser.newContext());
 
 // Real Tampermonkey provides GM_xmlhttpRequest, which runs in the extension

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Mock WME SDK harness</title>
+    <style>
+      body { font-family: sans-serif; margin: 0; background: #2a2a2a; color: #ddd; }
+      #wme-layout { display: grid; grid-template-columns: 380px 1fr; height: 100vh; }
+      #sidebar { background: #1e1e1e; padding: 12px; overflow: auto; border-right: 1px solid #444; }
+      #sidebar h3 { margin: 0 0 8px; font-size: 14px; }
+      #layer-switcher { background: #252525; padding: 8px; margin-bottom: 12px; border-radius: 4px; }
+      #layer-switcher h4 { margin: 0 0 6px; font-size: 12px; opacity: 0.7; }
+      .tab-strip { display: flex; gap: 4px; margin-bottom: 8px; border-bottom: 1px solid #444; }
+      .tab-strip .tab { padding: 4px 10px; background: #333; border-radius: 4px 4px 0 0; cursor: pointer; font-size: 12px; }
+      .tab-strip .tab.active { background: #4a4a4a; }
+      .tab-pane { display: none; padding: 8px; background: #2a2a2a; border-radius: 0 4px 4px 4px; }
+      .tab-pane.active { display: block; }
+      #map { background: linear-gradient(135deg, #1a3a5c, #2a5c8a); }
+    </style>
+  </head>
+  <body>
+    <div id="wme-layout">
+      <aside id="sidebar">
+        <div id="layer-switcher">
+          <h4>WME LayerSwitcher (stub)</h4>
+          <div id="layer-checkboxes"></div>
+        </div>
+        <h3>Script tabs</h3>
+        <div class="tab-strip" id="tab-strip"></div>
+        <div id="tab-panes"></div>
+      </aside>
+      <main id="map">map (mock)</main>
+    </div>
+
+    <script>
+      // ---- Stub global OL 2.x ----
+      window.OL = {
+        Layer: {
+          XYZ: function (name, url, opts) {
+            this.name = name;
+            this.url = url;
+            this.opts = opts || {};
+            this.opacity = this.opts.opacity ?? 1;
+            this.visibility = this.opts.visibility ?? true;
+            this.setVisibility = (v) => { this.visibility = v; };
+            this.setOpacity = (o) => { this.opacity = o; };
+            return this;
+          },
+        },
+      };
+
+      // ---- Stub window.W (map host) ----
+      const mockOlMap = {
+        layers: [],
+        addLayer(l) { this.layers.push(l); },
+        removeLayer(l) {
+          const i = this.layers.indexOf(l);
+          if (i >= 0) this.layers.splice(i, 1);
+        },
+      };
+      window.W = { map: { olMap: mockOlMap } };
+
+      // ---- Stub WME SDK ----
+      window.SDK_INITIALIZED = Promise.resolve();
+
+      const layerCheckboxRegistry = new Map(); // name -> { checked, el }
+      const layerCheckboxesContainer = document.getElementById("layer-checkboxes");
+      const eventBus = new EventTarget();
+
+      window.getWmeSdk = ({ scriptId, scriptName }) => ({
+        LayerSwitcher: {
+          addLayerCheckbox: ({ name, isChecked }) => {
+            if (layerCheckboxRegistry.has(name)) {
+              const err = new Error(`InvalidStateError: checkbox "${name}" already exists`);
+              err.name = "InvalidStateError";
+              throw err;
+            }
+            const wrap = document.createElement("label");
+            wrap.style.display = "block";
+            wrap.style.fontSize = "12px";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = !!isChecked;
+            cb.addEventListener("change", () => {
+              eventBus.dispatchEvent(
+                new CustomEvent("wme-layer-checkbox-toggled", {
+                  detail: { checked: cb.checked, name },
+                }),
+              );
+            });
+            wrap.appendChild(cb);
+            wrap.appendChild(document.createTextNode(" " + name));
+            layerCheckboxesContainer.appendChild(wrap);
+            layerCheckboxRegistry.set(name, { checked: !!isChecked, el: wrap, cb });
+          },
+          removeLayerCheckbox: ({ name }) => {
+            const entry = layerCheckboxRegistry.get(name);
+            if (!entry) {
+              const err = new Error(`InvalidStateError: no checkbox "${name}"`);
+              err.name = "InvalidStateError";
+              throw err;
+            }
+            entry.el.remove();
+            layerCheckboxRegistry.delete(name);
+          },
+          setLayerCheckboxChecked: ({ name, isChecked }) => {
+            const entry = layerCheckboxRegistry.get(name);
+            if (!entry) throw new Error("InvalidStateError");
+            entry.cb.checked = !!isChecked;
+            entry.checked = !!isChecked;
+          },
+        },
+        Sidebar: {
+          registerScriptTab: async () => {
+            const strip = document.getElementById("tab-strip");
+            const panes = document.getElementById("tab-panes");
+            const tabLabel = document.createElement("div");
+            tabLabel.className = "tab active";
+            const tabPane = document.createElement("div");
+            tabPane.className = "tab-pane active";
+            tabLabel.addEventListener("click", () => {
+              strip.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+              panes.querySelectorAll(".tab-pane").forEach((p) => p.classList.remove("active"));
+              tabLabel.classList.add("active");
+              tabPane.classList.add("active");
+            });
+            strip.appendChild(tabLabel);
+            panes.appendChild(tabPane);
+            return { tabLabel, tabPane };
+          },
+        },
+        Events: {
+          on: ({ eventName, eventHandler }) => {
+            eventBus.addEventListener(eventName, (e) => eventHandler(e.detail));
+          },
+        },
+      });
+
+      // ---- Plain fetch for catalog (no GM, falls through to fetch in catalog.ts).
+      //      We serve a small canned XML so the test doesn't depend on the network.
+      const CANNED_CAPABILITIES = `<?xml version="1.0"?>
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0">
+  <Contents>
+    <Layer><Identifier>LANDSECT</Identifier><Title>地段界</Title><Format>image/png</Format></Layer>
+    <Layer><Identifier>EMAP5</Identifier><Title>臺灣通用電子地圖(等高線+門牌)</Title><Format>image/jpeg</Format></Layer>
+    <Layer><Identifier>EMAP6</Identifier><Title>另一張底圖</Title><Format>image/jpeg</Format></Layer>
+  </Contents>
+</Capabilities>`;
+      const origFetch = window.fetch;
+      window.fetch = (url, opts) => {
+        if (typeof url === "string" && url.includes("WMTSCapabilities")) {
+          return Promise.resolve(new Response(CANNED_CAPABILITIES, {
+            status: 200,
+            headers: { "Content-Type": "application/xml" },
+          }));
+        }
+        return origFetch(url, opts);
+      };
+    </script>
+
+    <!-- Pretend we're on www.waze.com so the userscript's host check passes. -->
+    <script>
+      // window.location.hostname is read-only, so we proxy the whole window
+      // for the userscript's host check by wrapping the script in an IIFE
+      // that overrides only what we need. Easiest path: inline-eval the dist
+      // script with a Function arg shim. The userscript reads
+      // window.location.hostname, which we can't change at the document
+      // level, so instead we use a stand-in `window` that proxies location.
+      (async () => {
+        const src = await fetch("/dist/wme-nlsc-overlay.user.js").then((r) => r.text());
+        const fakeLocation = new Proxy(window.location, {
+          get(target, prop) {
+            if (prop === "hostname") return "www.waze.com";
+            return target[prop];
+          },
+        });
+        const fakeWindow = new Proxy(window, {
+          get(target, prop) {
+            if (prop === "location") return fakeLocation;
+            if (prop === "top") return target;
+            if (prop === "self") return target;
+            const v = target[prop];
+            return typeof v === "function" ? v.bind(target) : v;
+          },
+          set(target, prop, value) {
+            target[prop] = value;
+            return true;
+          },
+        });
+        // The userscript is an IIFE that reads `window.*`. Run it in a scope
+        // where `window` resolves to fakeWindow.
+        new Function("window", "self", "globalThis", src)(fakeWindow, fakeWindow, fakeWindow);
+      })();
+    </script>
+  </body>
+</html>

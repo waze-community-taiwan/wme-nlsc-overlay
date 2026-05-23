@@ -23,11 +23,19 @@ const SCRIPT_NAME = "WME NLSC Overlay";
 
   console.log(`[${SCRIPT_ID}] loaded`);
 
-  await window.SDK_INITIALIZED;
-  const sdk = window.getWmeSdk!({ scriptId: SCRIPT_ID, scriptName: SCRIPT_NAME });
+  // Under Tampermonkey, `window` is a sandboxed proxy and the WME globals
+  // (`SDK_INITIALIZED`, `getWmeSdk`, `OL`, `W`) only live on the real page
+  // window, which `@grant unsafeWindow` exposes as `unsafeWindow`. Direct
+  // `window.SDK_INITIALIZED` returns `undefined` in the sandbox, so the
+  // script awaits `undefined` (resolves to `undefined`), then `getWmeSdk`
+  // is `undefined` and the script throws before reaching `registerScriptTab`
+  // — the userscript silently fails to add its tab.
+  const uw: any = (window as any).unsafeWindow ?? window;
+
+  await uw.SDK_INITIALIZED;
+  const sdk = uw.getWmeSdk({ scriptId: SCRIPT_ID, scriptName: SCRIPT_NAME });
   console.log(`[${SCRIPT_ID}] wme ready`, sdk);
 
-  const uw = (window as any).unsafeWindow ?? window;
   const OL = uw.OL;
   const olMap = uw.W?.map?.olMap;
   if (!OL || !olMap) {
@@ -36,6 +44,18 @@ const SCRIPT_NAME = "WME NLSC Overlay";
   }
 
   const state = loadState();
+
+  // Web-mercator ground resolution (m/pixel) at z=0 for 256px tiles. This is
+  // the OL 2.x spherical-mercator default and matches NLSC's GoogleMapsCompatible
+  // ScaleDenominator at z=0 (≈ 559082264 * 0.00028 m).
+  const WEB_MERCATOR_RES_Z0 = 156543.0339280410;
+  const buildServerResolutions = (minZoom: number, maxZoom: number): number[] => {
+    const out: number[] = [];
+    for (let z = minZoom; z <= maxZoom; z++) {
+      out.push(WEB_MERCATOR_RES_Z0 / Math.pow(2, z));
+    }
+    return out;
+  };
 
   // NLSC WMTS axis order is /{z}/{y}/{x} — not slippy /{z}/{x}/{y}. OL 2.x
   // XYZ expands `${z}` / `${x}` / `${y}` placeholders verbatim, so swapping
@@ -49,6 +69,12 @@ const SCRIPT_NAME = "WME NLSC Overlay";
       opacity,
       visibility: visible,
       attribution: layer.attribution,
+      // `serverResolutions` lists the resolutions the server actually publishes.
+      // When WME's map zooms past the layer's real cap, OL clamps to the highest
+      // server resolution and upscales that tile, avoiding 404s on non-existent
+      // deeper zoom levels. `transitionEffect: 'resize'` smooths the upscale.
+      serverResolutions: buildServerResolutions(layer.minZoom, layer.maxZoom),
+      transitionEffect: "resize",
     });
     tileLayer.nlscCode = layer.code;
     olMap.addLayer(tileLayer);
@@ -76,11 +102,22 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     defaultEntries.map(({ layer, tileLayer }) => bindingFor(layer, tileLayer)),
   );
 
+  // Track which checkbox names we successfully registered with the SDK, so
+  // remove/setChecked calls don't blow up on names the SDK never accepted.
+  const registeredCheckboxes = new Set<string>();
+  const safeAddCheckbox = (name: string, isChecked: boolean): void => {
+    try {
+      sdk.LayerSwitcher.addLayerCheckbox({ name, isChecked });
+      registeredCheckboxes.add(name);
+    } catch (err) {
+      // Most common cause: InvalidStateError on a duplicate name. The sidebar
+      // row is the primary UI surface, so we keep going rather than aborting.
+      console.warn(`[${SCRIPT_ID}] addLayerCheckbox(${name}) failed`, err);
+    }
+  };
+
   for (const layer of NLSC_LAYERS) {
-    sdk.LayerSwitcher.addLayerCheckbox({
-      name: layer.name,
-      isChecked: state.visible[layer.code] ?? false,
-    });
+    safeAddCheckbox(layer.name, state.visible[layer.code] ?? false);
   }
 
   // Fetch the NLSC WMTS layer catalog. Defaults already cover the common
@@ -102,7 +139,7 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     const tileLayer = createTileLayer(layer, visible, opacity);
     userTileLayers.set(layer.code, tileLayer);
     controller.addBinding(bindingFor(layer, tileLayer));
-    sdk.LayerSwitcher.addLayerCheckbox({ name: layer.name, isChecked: visible });
+    safeAddCheckbox(layer.name, visible);
   };
 
   for (const code of state.userLayers) {
@@ -127,7 +164,7 @@ const SCRIPT_NAME = "WME NLSC Overlay";
 
   controller.onVisibleChange((code, visible) => {
     const layer = allKnownLayers().find((l) => l.code === code);
-    if (!layer) return;
+    if (!layer || !registeredCheckboxes.has(layer.name)) return;
     try {
       sdk.LayerSwitcher.setLayerCheckboxChecked({ name: layer.name, isChecked: visible });
     } catch {
@@ -155,12 +192,13 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     olMap.removeLayer(tileLayer);
     userTileLayers.delete(code);
     const layer = catalog.find((l) => l.code === code);
-    if (layer) {
+    if (layer && registeredCheckboxes.has(layer.name)) {
       try {
         sdk.LayerSwitcher.removeLayerCheckbox({ name: layer.name });
       } catch {
         // ignore — checkbox may have been cleared already.
       }
+      registeredCheckboxes.delete(layer.name);
     }
     controller.removeBinding(code);
     state.userLayers = state.userLayers.filter((c) => c !== code);

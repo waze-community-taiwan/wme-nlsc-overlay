@@ -6,14 +6,22 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 8765;
 
-const server = http.createServer((req, res) => {
-  // Serve files from the fixtures directory
-  let filePath = path.join(__dirname, req.url === "/" ? "mock-wme.html" : req.url);
+const repoRoot = path.resolve(__dirname, "..", "..");
 
-  // Security: prevent directory traversal
+const server = http.createServer((req, res) => {
+  // Serve files from the fixtures directory, plus /dist/ for the built userscript.
+  let filePath;
+  if (req.url.startsWith("/dist/")) {
+    filePath = path.join(repoRoot, req.url);
+  } else {
+    filePath = path.join(__dirname, req.url === "/" ? "mock-wme.html" : req.url);
+  }
+
+  // Security: prevent directory traversal.
   const realPath = path.resolve(filePath);
-  const dirPath = path.resolve(__dirname);
-  if (!realPath.startsWith(dirPath)) {
+  const fixturesDir = path.resolve(__dirname);
+  const distDir = path.join(repoRoot, "dist");
+  if (!realPath.startsWith(fixturesDir) && !realPath.startsWith(distDir)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
     res.end("Forbidden");
     return;
