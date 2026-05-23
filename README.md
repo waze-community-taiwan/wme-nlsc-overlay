@@ -107,3 +107,7 @@ For Tampermonkey auto-update to work end-to-end, add `downloadURL` and `updateUR
 - NLSC WMTS uses non-standard tile axis order `{z}/{y}/{x}` instead of standard Web Mercator `{z}/{x}/{y}`. The script handles this internally
 - For architecture notes and development tips, see **CLAUDE.md**
 - Personal-use software provided as-is; not affiliated with or endorsed by Waze
+
+## License
+
+[MIT](LICENSE) © Waze Community Taiwan. Tile data is served by the Taiwan National Land Surveying and Mapping Center (NLSC); refer to NLSC's own terms for the data itself.
