@@ -16,7 +16,7 @@ on:
           - minor
           - major
       version:
-        description: "Explicit version override (without leading v, e.g. 0.1.0). Leave empty to auto-bump from package.json."
+        description: "Explicit version override (without leading v, e.g. 0.2.0). Leave empty to auto-bump from highest known version."
         required: false
         type: string
 
@@ -34,7 +34,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Full history so the auto-bump path can push commits back to the branch.
+          # Full history + tags so the auto-bump path can find the highest
+          # existing version and push commits back to the branch.
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -56,6 +57,23 @@ jobs:
           BUMP="${{ inputs.bump }}"
           OVERRIDE="${{ inputs.version }}"
 
+          # Highest existing v*.*.* tag (semver-sorted), if any. Used to
+          # avoid colliding with orphan tags when package.json drifted.
+          LATEST_TAG="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)"
+          LATEST_TAG_VERSION="${LATEST_TAG#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+
+          # Pick the higher of (package.json version, latest tag version) as
+          # the bump base. `sort -V` gives natural version order; `tail -n1`
+          # is the largest. Falls back to the package.json value if no tag
+          # exists yet.
+          if [ -n "$LATEST_TAG_VERSION" ]; then
+            BASE_VERSION="$(printf '%s\n%s\n' "$PKG_VERSION" "$LATEST_TAG_VERSION" | sort -V | tail -n1)"
+          else
+            BASE_VERSION="$PKG_VERSION"
+          fi
+          echo "Bump base: $BASE_VERSION (package.json=$PKG_VERSION, latest tag=${LATEST_TAG:-<none>})"
+
           if [ "$EVENT" = "push" ]; then
             # Tag-push path: tag is authoritative, package.json on disk is
             # left untouched (it may drift from the tag — workflow_dispatch
@@ -64,18 +82,30 @@ jobs:
             VERSION="${TAG#v}"
             COMMIT_BACK="false"
           else
-            # workflow_dispatch path. `npm version` writes both package.json
-            # and package-lock.json; --no-git-tag-version skips commit/tag
-            # (we do those explicitly later so they include metablock.json).
+            # workflow_dispatch path. Compute target version from the bump
+            # base, then write it into package.json/package-lock.json.
+            # --no-git-tag-version skips commit/tag (we do those explicitly
+            # later so they include CHANGELOG.md and metablock.json).
             if [ -n "$OVERRIDE" ]; then
-              npm version "$OVERRIDE" --no-git-tag-version --allow-same-version >/dev/null
               VERSION="$OVERRIDE"
             else
+              # Reset package.json to the bump base first so `npm version`
+              # bumps from the right starting point regardless of any drift.
+              npm version "$BASE_VERSION" --no-git-tag-version --allow-same-version >/dev/null
               npm version "$BUMP" --no-git-tag-version >/dev/null
-              VERSION=$(node -p "require('./package.json').version")
+              VERSION="$(node -p "require('./package.json').version")"
             fi
+
+            # Make sure the explicit override (or anything else) lands in
+            # package.json + package-lock.json before subsequent steps read
+            # it back.
+            npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null
+
             TAG="v${VERSION}"
             COMMIT_BACK="true"
+
+            # Final collision check: surface a clear error if the resolved
+            # tag already exists (typically only on an explicit override).
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
               echo "::error::Tag ${TAG} already exists. Pick a different version or bump level."
               exit 1
@@ -115,6 +145,14 @@ jobs:
           head -n 30 dist/wme-nlsc-overlay.user.js
           grep -q "^// @version *${{ steps.version.outputs.version }}$" dist/wme-nlsc-overlay.user.js
 
+      - name: Generate release notes and update CHANGELOG.md
+        run: |
+          node scripts/generate-changelog.mjs \
+            "${{ steps.version.outputs.version }}" \
+            "${{ steps.version.outputs.tag }}" \
+            "${{ github.repository }}" \
+            "${{ github.event_name }}"
+
       - name: Commit bump and push tag
         if: steps.version.outputs.commit_back == 'true'
         env:
@@ -130,7 +168,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add package.json package-lock.json metablock.json
+          git add package.json package-lock.json metablock.json CHANGELOG.md
           if git diff --cached --quiet; then
             echo "No version changes to commit (idempotent re-run?)."
           else
@@ -145,19 +183,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           TAG="${{ steps.version.outputs.tag }}"
-          NOTES="Automated release of \`wme-nlsc-overlay.user.js\` version ${{ steps.version.outputs.version }}.
-
-          **Install:** [\`wme-nlsc-overlay.user.js\`](https://github.com/${{ github.repository }}/releases/latest/download/wme-nlsc-overlay.user.js) — click the link with Tampermonkey/Violentmonkey/Greasemonkey installed.
-
-          See [README](https://github.com/${{ github.repository }}#install-on-browser) for full install instructions."
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/wme-nlsc-overlay.user.js --clobber
-            gh release edit "$TAG" --notes "$NOTES"
+            gh release edit "$TAG" --notes-file RELEASE_NOTES.md
           else
             gh release create "$TAG" \
               dist/wme-nlsc-overlay.user.js \
               --title "$TAG" \
-              --notes "$NOTES"
+              --notes-file RELEASE_NOTES.md
           fi

@@ -9,3 +9,4 @@ coverage/
 tests/manual/*.log
 .claude/*
 .playwright*
+RELEASE_NOTES.md
