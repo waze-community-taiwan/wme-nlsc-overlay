@@ -4,9 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-New entries are generated automatically by `.github/workflows/release.yml` from
-[Conventional Commit](https://www.conventionalcommits.org/) subjects.
+## [0.2.0](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.2.0) — 2026-05-24
 
+[Compare `v0.0.2...v0.2.0`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.0.2...v0.2.0)
+
+### Bug Fixes
+
+- **restack:** keep satellite_imagery + earthengine-legacy aerials below NLSC band ([`b1f4c97`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/b1f4c972a764471c5852557af4ae78d9b7f30503))
+
+### CI
+
+- **release:** fix auto-bump collision and generate changelog (#5) ([`6e7819a`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/6e7819a44a7efbd0004b386e3f58c76fdf8c9043))
+
+**Install:** [`wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/download/v0.2.0/wme-nlsc-overlay.user.js) — open with Tampermonkey/Violentmonkey/Greasemonkey to install.
+Always-latest link: [`releases/latest/download/wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js).
 ## [0.0.2](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.0.2) — 2026-05-23
 
 _Initial tracked release._
