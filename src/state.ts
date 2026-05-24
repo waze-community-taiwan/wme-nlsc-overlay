@@ -10,13 +10,20 @@ export interface NlscState {
   color: Record<string, string | null>;
   /** Catalog layer codes the user has added beyond the built-in defaults. */
   userLayers: string[];
+  /**
+   * Stack/display order, in sidebar top-to-bottom order. Index 0 = top of the
+   * sidebar list = top of the NLSC overlay stack (still below editor layers).
+   * Reconciled against currently-registered layers at startup — unknown codes
+   * are dropped, newly-registered codes are prepended.
+   */
+  layerOrder: string[];
 }
 
 const STORAGE_KEY = "wme-nlsc-overlay:state";
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
 function emptyState(): NlscState {
-  return { visible: {}, opacity: {}, userLayers: [], color: {} };
+  return { visible: {}, opacity: {}, userLayers: [], color: {}, layerOrder: [] };
 }
 
 export function loadState(): NlscState {
@@ -43,6 +50,10 @@ export function loadState(): NlscState {
       userLayers:
         parsed && Array.isArray(parsed.userLayers)
           ? parsed.userLayers.filter((c): c is string => typeof c === "string")
+          : [],
+      layerOrder:
+        parsed && Array.isArray(parsed.layerOrder)
+          ? parsed.layerOrder.filter((c): c is string => typeof c === "string")
           : [],
     };
   } catch {

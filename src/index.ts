@@ -5,6 +5,7 @@ import { loadState, saveState } from "./state";
 import { renderSidebar } from "./sidebar";
 import { NlscController, type LayerBinding } from "./controller";
 import { filterForColor } from "./tint";
+import { restackLayers } from "./restack";
 
 /**
  * WME NLSC Overlay — Entry point
@@ -71,6 +72,18 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     div.style.filter = filterForColor(code, color);
   };
 
+  // OL tile layers indexed by NLSC code so the restacker can look them up
+  // without scanning olMap.layers. Defaults + user-added entries both register
+  // here via createTileLayer.
+  const tileLayersByCode = new Map<string, any>();
+
+  // Re-stack every NLSC overlay just above the base layer (algorithm lives in
+  // ./restack so it can be unit-tested). Called at startup, on order changes,
+  // and on olMap addlayer/removelayer events further below.
+  const restackAll = (): void => {
+    restackLayers(olMap, tileLayersByCode, state.layerOrder);
+  };
+
   // NLSC WMTS axis order is /{z}/{y}/{x} — not slippy /{z}/{x}/{y}. OL 2.x
   // XYZ expands `${z}` / `${x}` / `${y}` placeholders verbatim, so swapping
   // x and y in the template handles the axis order naturally.
@@ -97,6 +110,7 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     });
     tileLayer.nlscCode = layer.code;
     olMap.addLayer(tileLayer);
+    tileLayersByCode.set(layer.code, tileLayer);
     applyFilter(tileLayer, layer.code, color);
     return tileLayer;
   };
@@ -211,7 +225,10 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     if (!state.userLayers.includes(code)) state.userLayers.push(code);
     state.visible[code] = visible;
     state.opacity[code] = opacity;
+    // New layers slot in at the top of the stack (sidebar top).
+    state.layerOrder = [code, ...state.layerOrder.filter((c) => c !== code)];
     saveState(state);
+    restackAll();
     return layer;
   };
 
@@ -220,6 +237,7 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     if (!tileLayer) return;
     olMap.removeLayer(tileLayer);
     userTileLayers.delete(code);
+    tileLayersByCode.delete(code);
     const layer = catalog.find((l) => l.code === code);
     if (layer && registeredCheckboxes.has(layer.name)) {
       try {
@@ -231,11 +249,87 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     }
     controller.removeBinding(code);
     state.userLayers = state.userLayers.filter((c) => c !== code);
+    state.layerOrder = state.layerOrder.filter((c) => c !== code);
     delete state.visible[code];
     delete state.opacity[code];
     delete state.color[code];
     saveState(state);
+    restackAll();
   };
+
+  // Reconcile persisted order against what's actually registered. Drop any
+  // stale codes (catalog layer that no longer exists), and prepend newly-
+  // registered codes (e.g. a newly-added default) at the top of the stack.
+  // Migration default for users whose state predates this field: user-added
+  // layers on top (matches the previous registration-order stacking), then
+  // defaults below in declared order — first-declared sits at the bottom.
+  const registeredCodes = new Set<string>(tileLayersByCode.keys());
+  if (state.layerOrder.length === 0) {
+    state.layerOrder = [
+      ...state.userLayers.filter((c) => registeredCodes.has(c)).slice().reverse(),
+      ...NLSC_LAYERS.map((l) => l.code).slice().reverse(),
+    ];
+  } else {
+    const existing = new Set(state.layerOrder);
+    const missing = [...registeredCodes].filter((c) => !existing.has(c));
+    state.layerOrder = [
+      ...missing, // new registrations appear at the top
+      ...state.layerOrder.filter((c) => registeredCodes.has(c)),
+    ];
+  }
+  // Re-entry guard: every `setLayerIndex` call we make inside restackAll
+  // fires a `changelayer` event, which we also subscribe to below. Without
+  // this flag we'd loop forever as soon as the first restack runs.
+  let restacking = false;
+  const guardedRestack = (): void => {
+    if (restacking) return;
+    restacking = true;
+    try {
+      restackAll();
+    } finally {
+      restacking = false;
+    }
+  };
+
+  saveState(state);
+  guardedRestack();
+  controller.onOrderChange(() => guardedRestack());
+
+  // What we observed in real WME: toggling "Satellite imagery" in the layer
+  // panel does NOT fire `addlayer`/`removelayer` on olMap. Instead WME
+  // shuffles the existing satellite layer's array position via
+  // `setLayerIndex` and/or flips its visibility, both of which fire
+  // `changelayer`. So we subscribe to a broader set of layer-mutation
+  // events and coalesce bursts into a single restack via a short setTimeout.
+  // The restack itself is idempotent (no setLayerIndex calls when already
+  // ordered correctly), so the periodic safety net below is essentially free.
+  let restackScheduled = false;
+  const scheduleRestack = (label: string): void => {
+    if (restackScheduled) return;
+    restackScheduled = true;
+    setTimeout(() => {
+      restackScheduled = false;
+      console.debug(`[${SCRIPT_ID}] restack: ${label}`);
+      guardedRestack();
+    }, 50);
+  };
+
+  const olEventNames = ["addlayer", "removelayer", "changelayer", "changebaselayer"];
+  for (const name of olEventNames) {
+    try {
+      olMap.events.register(name, null, () => scheduleRestack(`ol:${name}`));
+    } catch (err) {
+      console.warn(`[${SCRIPT_ID}] could not subscribe to olMap '${name}'`, err);
+    }
+  }
+
+  // Defensive: WME may also mutate layers through paths we haven't traced
+  // (e.g. internal Backbone events that don't propagate to olMap.events).
+  // Re-stack every 2s as a safety net — idempotent, so it's a cheap diff.
+  // Stops walking the layer list once the user navigates away by clearing
+  // on `pagehide`.
+  const safetyTimer = setInterval(() => scheduleRestack("safety-tick"), 2000);
+  window.addEventListener("pagehide", () => clearInterval(safetyTimer));
 
   const { tabLabel, tabPane } = await sdk.Sidebar.registerScriptTab();
   renderSidebar(tabLabel, tabPane, NLSC_LAYERS, controller, state, {

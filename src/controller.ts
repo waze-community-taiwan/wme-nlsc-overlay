@@ -12,6 +12,7 @@ export interface LayerBinding {
 export type VisibilityListener = (code: string, visible: boolean) => void;
 export type OpacityListener = (code: string, opacity: number) => void;
 export type ColorListener = (code: string, color: string | null) => void;
+export type OrderListener = (order: readonly string[]) => void;
 
 /**
  * Single source of truth for layer visibility/opacity/color. Both the sidebar
@@ -23,6 +24,7 @@ export class NlscController {
   private readonly visListeners: VisibilityListener[] = [];
   private readonly opListeners: OpacityListener[] = [];
   private readonly colorListeners: ColorListener[] = [];
+  private readonly orderListeners: OrderListener[] = [];
 
   constructor(
     private readonly state: NlscState,
@@ -69,6 +71,23 @@ export class NlscController {
     this.byCode.delete(code);
   }
 
+  getOrder(): readonly string[] {
+    return this.state.layerOrder;
+  }
+
+  /**
+   * Replace the stacking order. Unknown codes (no registered binding) are
+   * dropped. No-op if the resulting array matches the current order, which
+   * keeps DnD drop events from looping back through onOrderChange.
+   */
+  setOrder(order: readonly string[]): void {
+    const cleaned = order.filter((c) => this.byCode.has(c));
+    if (arraysEqual(cleaned, this.state.layerOrder)) return;
+    this.state.layerOrder = [...cleaned];
+    saveState(this.state);
+    for (const fn of this.orderListeners) fn(this.state.layerOrder);
+  }
+
   onVisibleChange(handler: VisibilityListener): void {
     this.visListeners.push(handler);
   }
@@ -80,4 +99,14 @@ export class NlscController {
   onColorChange(handler: ColorListener): void {
     this.colorListeners.push(handler);
   }
+
+  onOrderChange(handler: OrderListener): void {
+    this.orderListeners.push(handler);
+  }
+}
+
+function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }

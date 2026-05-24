@@ -22,7 +22,13 @@ const NLSC_STYLES = `
 .nlsc-btn-primary:hover { background: #2558b5; }
 .nlsc-btn-primary:active { background: #1f4895; transform: scale(0.97); }
 
-.nlsc-card { position: relative; margin: 6px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--hairline, rgba(128,128,128,0.2)); }
+.nlsc-card { position: relative; margin: 6px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--hairline, rgba(128,128,128,0.2)); transition: opacity 0.15s, box-shadow 0.15s; }
+.nlsc-card.nlsc-dragging { opacity: 0.45; }
+.nlsc-card.nlsc-drop-above { box-shadow: 0 -3px 0 0 #2d6cdf inset, 0 -3px 0 0 #2d6cdf; }
+.nlsc-card.nlsc-drop-below { box-shadow: 0 3px 0 0 #2d6cdf inset, 0 3px 0 0 #2d6cdf; }
+.nlsc-grip { cursor: grab; user-select: none; padding: 0 2px; opacity: 0.45; font-size: 16px; line-height: 1; letter-spacing: -3px; color: inherit; }
+.nlsc-grip:hover { opacity: 0.85; }
+.nlsc-grip:active { cursor: grabbing; }
 .nlsc-row-header { display: flex; align-items: center; gap: 10px; }
 .nlsc-name { display: flex; flex-direction: column; flex: 1; min-width: 0; word-break: break-word; line-height: 1.25; }
 .nlsc-name-title { font-weight: 600; }
@@ -139,36 +145,122 @@ export function renderSidebar(
   addRow.appendChild(addBtn);
   tabPane.appendChild(addRow);
 
-  for (const layer of defaults) {
-    const refs = renderLayerRow(layer, controller, state, null);
-    tabPane.appendChild(refs.row);
-    wireRowListeners(layer, controller, refs);
-  }
+  // One flat container in `state.layerOrder` (= controller order). Rows for
+  // defaults and user-added layers interleave freely; their visual order in
+  // this container drives both the sidebar list and the OL stacking order.
+  const layerList = document.createElement("div");
+  tabPane.appendChild(layerList);
 
-  const userContainer = document.createElement("div");
-  tabPane.appendChild(userContainer);
+  const defaultCodes = new Set(defaults.map((l) => l.code));
+  const rowByCode = new Map<string, HTMLElement>();
+  const layerByCode = new Map<string, NlscLayer>();
+  for (const l of defaults) layerByCode.set(l.code, l);
+  for (const l of callbacks.catalog) if (!layerByCode.has(l.code)) layerByCode.set(l.code, l);
 
-  const renderUserRow = (layer: NlscLayer): void => {
-    const refs = renderLayerRow(layer, controller, state, () => {
-      callbacks.removeUserLayer(layer.code);
-      userContainer.removeChild(refs.row);
-      addOption(layer);
-    });
-    userContainer.appendChild(refs.row);
-    wireRowListeners(layer, controller, refs);
+  // Drag-and-drop on the ⋮⋮ grip. We keep `draggable=false` on rows by default
+  // so clicks on the slider / checkbox / color picker never accidentally
+  // initiate a drag; the grip flips draggable on mousedown.
+  let draggingCode: string | null = null;
+  const clearDropTargets = (): void => {
+    for (const el of layerList.querySelectorAll(".nlsc-drop-above, .nlsc-drop-below")) {
+      el.classList.remove("nlsc-drop-above", "nlsc-drop-below");
+    }
   };
 
-  for (const code of state.userLayers) {
-    const layer = callbacks.catalog.find((l) => l.code === code);
-    if (layer) renderUserRow(layer);
+  const wireDnD = (row: HTMLElement, grip: HTMLElement, code: string): void => {
+    grip.addEventListener("mousedown", () => {
+      row.draggable = true;
+    });
+    grip.addEventListener("mouseup", () => {
+      row.draggable = false;
+    });
+    row.addEventListener("dragstart", (e) => {
+      if (!row.draggable) {
+        e.preventDefault();
+        return;
+      }
+      draggingCode = code;
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", code);
+      }
+      row.classList.add("nlsc-dragging");
+    });
+    row.addEventListener("dragover", (e) => {
+      if (!draggingCode || draggingCode === code) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      const rect = row.getBoundingClientRect();
+      const above = e.clientY < rect.top + rect.height / 2;
+      clearDropTargets();
+      row.classList.add(above ? "nlsc-drop-above" : "nlsc-drop-below");
+    });
+    row.addEventListener("dragleave", () => {
+      row.classList.remove("nlsc-drop-above", "nlsc-drop-below");
+    });
+    row.addEventListener("drop", (e) => {
+      e.preventDefault();
+      if (!draggingCode || draggingCode === code) return;
+      const rect = row.getBoundingClientRect();
+      const above = e.clientY < rect.top + rect.height / 2;
+      const filtered = state.layerOrder.filter((c) => c !== draggingCode);
+      let idx = filtered.indexOf(code);
+      if (idx === -1) return;
+      if (!above) idx += 1;
+      filtered.splice(idx, 0, draggingCode);
+      controller.setOrder(filtered);
+      clearDropTargets();
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("nlsc-dragging");
+      row.draggable = false;
+      draggingCode = null;
+      clearDropTargets();
+    });
+  };
+
+  const buildRow = (layer: NlscLayer): HTMLElement => {
+    const isUserAdded = !defaultCodes.has(layer.code);
+    let refs: RowRefs;
+    refs = renderLayerRow(layer, controller, state, isUserAdded
+      ? () => {
+          callbacks.removeUserLayer(layer.code);
+          if (refs.row.parentNode === layerList) layerList.removeChild(refs.row);
+          rowByCode.delete(layer.code);
+          addOption(layer);
+        }
+      : null);
+    wireRowListeners(layer, controller, refs);
+    wireDnD(refs.row, refs.grip, layer.code);
+    rowByCode.set(layer.code, refs.row);
+    return refs.row;
+  };
+
+  // Initial render in current order.
+  for (const code of controller.getOrder()) {
+    const layer = layerByCode.get(code);
+    if (!layer) continue;
+    layerList.appendChild(buildRow(layer));
   }
+
+  // Re-arrange existing rows when the order changes (DnD drop, programmatic).
+  // appendChild on an attached node moves it, so iterating top→bottom and
+  // appending each row in turn ends up with them in the requested order.
+  controller.onOrderChange((order) => {
+    for (const code of order) {
+      const row = rowByCode.get(code);
+      if (row) layerList.appendChild(row);
+    }
+  });
 
   addBtn.addEventListener("click", () => {
     const code = select.value;
     if (!code) return;
     const layer = callbacks.addUserLayer(code);
     if (!layer) return;
-    renderUserRow(layer);
+    const row = buildRow(layer);
+    // New layers land at the top of the stack — see addUserLayer in index.ts.
+    layerList.insertBefore(row, layerList.firstChild);
     const opt = optionByCode.get(code);
     if (opt) {
       select.removeChild(opt);
@@ -180,6 +272,7 @@ export function renderSidebar(
 
 interface RowRefs {
   row: HTMLElement;
+  grip: HTMLElement;
   checkbox: HTMLInputElement;
   slider: HTMLInputElement;
   valueLabel: HTMLElement;
@@ -316,6 +409,12 @@ function renderLayerRow(
   const headerRow = document.createElement("div");
   headerRow.className = "nlsc-row-header";
 
+  const grip = document.createElement("span");
+  grip.className = "nlsc-grip";
+  grip.textContent = "⋮⋮";
+  grip.title = "拖曳調整順序";
+  headerRow.appendChild(grip);
+
   const nameWrap = document.createElement("div");
   nameWrap.className = "nlsc-name";
 
@@ -392,7 +491,7 @@ function renderLayerRow(
     controller.setOpacity(layer.code, Number(slider.value) / 100);
   });
 
-  return { row, checkbox, slider, valueLabel, updateColorUi: colorCtl.updateUi };
+  return { row, grip, checkbox, slider, valueLabel, updateColorUi: colorCtl.updateUi };
 }
 
 function wireRowListeners(
