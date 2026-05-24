@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.2.2) — 2026-05-24
+
+[Compare `v0.2.1...v0.2.2`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.2.1...v0.2.2)
+
+### CI
+
+- **release:** stage userscript at repo root for Greasy Fork webhook ([`d6f46e6`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/d6f46e668443afcd2ba2d77f10b482b4df285ce8))
+
+**Install:** [`wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/download/v0.2.2/wme-nlsc-overlay.user.js) — open with Tampermonkey/Violentmonkey/Greasemonkey to install.
+Always-latest link: [`releases/latest/download/wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js).
 ## [0.2.1](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.2.1) — 2026-05-24
 
 [Compare `v0.2.0...v0.2.1`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.2.0...v0.2.1)
