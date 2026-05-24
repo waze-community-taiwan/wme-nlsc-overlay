@@ -24,7 +24,7 @@ it("add-button appends a new row when a catalog option is selected", () => {
   const defaultLayer = makeLayer("EMAP5", "EMAP5 · jpeg · default");
   const catalogLayer = makeLayer("CATALOG_A", "CATALOG_A · jpeg · catalog A");
 
-  const state: NlscState = { visible: {}, opacity: {}, color: {}, userLayers: [] };
+  const state: NlscState = { visible: {}, opacity: {}, color: {}, userLayers: [], layerOrder: [] };
   const controller = new NlscController(state, [
     {
       layer: defaultLayer,
