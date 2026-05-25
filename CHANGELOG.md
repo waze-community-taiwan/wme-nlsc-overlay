@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.3.0) — 2026-05-25
+
+[Compare `v0.2.2...v0.3.0`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.2.2...v0.3.0)
+
+### Features
+
+- **sidebar:** TOS dialog, above-objects pin, and removable defaults (#6) ([`b1955d5`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/b1955d5037232631ae2fa15976d5457eec075aa2))
+
+**Install:** [`wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/download/v0.3.0/wme-nlsc-overlay.user.js) — open with Tampermonkey/Violentmonkey/Greasemonkey to install.
+Always-latest link: [`releases/latest/download/wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js).
 ## [Unreleased]
 
 ### Features
