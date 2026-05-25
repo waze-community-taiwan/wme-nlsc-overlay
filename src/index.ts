@@ -18,6 +18,14 @@ import { restackLayers } from "./restack";
 const SCRIPT_ID = "wme-nlsc-overlay";
 const SCRIPT_NAME = "WME NLSC Overlay";
 
+// Injected at build time by rollup.config.mjs (intro = `const __SCRIPT_VERSION__ = …`).
+// Sourced from package.json so it stays in sync with the metablock @version
+// without any runtime dependency on GM_info (which isn't reliably exposed
+// when the script declares @grant).
+declare const __SCRIPT_VERSION__: string;
+const SCRIPT_VERSION =
+  typeof __SCRIPT_VERSION__ === "string" ? __SCRIPT_VERSION__ : "";
+
 (async () => {
   // WME SDK is never in nested frames; bail to avoid noise.
   if (window.top !== window.self) return;
@@ -77,11 +85,16 @@ const SCRIPT_NAME = "WME NLSC Overlay";
   // here via createTileLayer.
   const tileLayersByCode = new Map<string, any>();
 
-  // Re-stack every NLSC overlay just above the base layer (algorithm lives in
+  // Re-stack every NLSC overlay around the editor band (algorithm lives in
   // ./restack so it can be unit-tested). Called at startup, on order changes,
-  // and on olMap addlayer/removelayer events further below.
+  // and on olMap addlayer/removelayer events further below. At most one layer
+  // is promoted above editor objects (roads, places, hazards) at a time —
+  // state.aboveCode holds that slot, enforced by the controller's radio
+  // semantics.
+  const aboveSet = (): Set<string> =>
+    state.aboveCode ? new Set([state.aboveCode]) : new Set();
   const restackAll = (): void => {
-    restackLayers(olMap, tileLayersByCode, state.layerOrder);
+    restackLayers(olMap, tileLayersByCode, state.layerOrder, aboveSet());
   };
 
   // NLSC WMTS axis order is /{z}/{y}/{x} — not slippy /{z}/{x}/{y}. OL 2.x
@@ -122,7 +135,13 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     setLayerColor: (c) => applyFilter(tileLayer, layer.code, c),
   });
 
-  const defaultEntries = NLSC_LAYERS.map((layer) => {
+  // Defaults the user has explicitly removed stay un-registered until they
+  // re-add them via the catalog picker. Without this guard, every reload would
+  // resurrect deleted rows.
+  const removedDefaultCodes = new Set(state.removedDefaults);
+  const defaultEntries = NLSC_LAYERS.filter(
+    (layer) => !removedDefaultCodes.has(layer.code),
+  ).map((layer) => {
     const initialVisible = state.visible[layer.code] ?? false;
     const initialOpacity = state.opacity[layer.code] ?? layer.defaultOpacity;
     const initialColor = state.color[layer.code] ?? null;
@@ -152,24 +171,26 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     }
   };
 
-  for (const layer of NLSC_LAYERS) {
+  for (const { layer } of defaultEntries) {
     safeAddCheckbox(layer.name, state.visible[layer.code] ?? false);
   }
 
   // Fetch the NLSC WMTS layer catalog. Defaults already cover the common
-  // cases, so a fetch failure is non-fatal — the dropdown just shows empty.
-  const defaultCodes = new Set(NLSC_LAYERS.map((l) => l.code));
+  // cases, so a fetch failure is non-fatal — the dropdown just shows the
+  // hardcoded seed defaults so removed ones remain re-addable offline.
   let catalog: NlscLayer[] = [];
   try {
-    catalog = (await fetchCatalog()).filter((l) => !defaultCodes.has(l.code));
+    catalog = await fetchCatalog();
     console.log(`[${SCRIPT_ID}] fetched ${catalog.length} layers from NLSC capabilities`);
   } catch (err) {
     console.warn(`[${SCRIPT_ID}] NLSC catalog fetch failed`, err);
   }
-
-  // User-added catalog layers — restored from localStorage. Keep a handle to
-  // each OL layer so we can remove it when the user deletes the row.
-  const userTileLayers = new Map<string, any>();
+  // Prefer the hardcoded NLSC_LAYERS metadata (tuned defaultOpacity / display
+  // name) when a code appears in both. Also ensures the seed defaults are
+  // present in the picker even if the catalog fetch failed.
+  const catalogByCode = new Map<string, NlscLayer>(catalog.map((l) => [l.code, l]));
+  for (const l of NLSC_LAYERS) catalogByCode.set(l.code, l);
+  catalog = [...catalogByCode.values()];
 
   const registerCatalogLayer = (
     layer: NlscLayer,
@@ -178,12 +199,12 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     color: string | null,
   ): void => {
     const tileLayer = createTileLayer(layer, visible, opacity, color);
-    userTileLayers.set(layer.code, tileLayer);
     controller.addBinding(bindingFor(layer, tileLayer));
     safeAddCheckbox(layer.name, visible);
   };
 
   for (const code of state.userLayers) {
+    if (tileLayersByCode.has(code)) continue; // already registered as a seed default
     const layer = catalog.find((l) => l.code === code);
     if (!layer) continue;
     const visible = state.visible[code] ?? false;
@@ -214,15 +235,23 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     }
   });
 
+  const seedDefaultCodes = new Set(NLSC_LAYERS.map((l) => l.code));
+
   const addUserLayer = (code: string): NlscLayer | null => {
-    if (userTileLayers.has(code)) return null;
+    if (tileLayersByCode.has(code)) return null;
     const layer = catalog.find((l) => l.code === code);
     if (!layer) return null;
     const visible = state.visible[code] ?? true;
     const opacity = state.opacity[code] ?? layer.defaultOpacity;
     const color = state.color[code] ?? null;
     registerCatalogLayer(layer, visible, opacity, color);
-    if (!state.userLayers.includes(code)) state.userLayers.push(code);
+    // Re-adding a previously-removed seed default clears its removal flag so
+    // the next reload reinstates it via the normal default-registration loop.
+    if (seedDefaultCodes.has(code)) {
+      state.removedDefaults = state.removedDefaults.filter((c) => c !== code);
+    } else if (!state.userLayers.includes(code)) {
+      state.userLayers.push(code);
+    }
     state.visible[code] = visible;
     state.opacity[code] = opacity;
     // New layers slot in at the top of the stack (sidebar top).
@@ -233,12 +262,13 @@ const SCRIPT_NAME = "WME NLSC Overlay";
   };
 
   const removeUserLayer = (code: string): void => {
-    const tileLayer = userTileLayers.get(code);
+    const tileLayer = tileLayersByCode.get(code);
     if (!tileLayer) return;
     olMap.removeLayer(tileLayer);
-    userTileLayers.delete(code);
     tileLayersByCode.delete(code);
-    const layer = catalog.find((l) => l.code === code);
+    const layer =
+      catalog.find((l) => l.code === code) ??
+      NLSC_LAYERS.find((l) => l.code === code);
     if (layer && registeredCheckboxes.has(layer.name)) {
       try {
         sdk.LayerSwitcher.removeLayerCheckbox({ name: layer.name });
@@ -253,6 +283,10 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     delete state.visible[code];
     delete state.opacity[code];
     delete state.color[code];
+    // Suppress auto-re-registration on next load for hardcoded seed defaults.
+    if (seedDefaultCodes.has(code) && !state.removedDefaults.includes(code)) {
+      state.removedDefaults.push(code);
+    }
     saveState(state);
     restackAll();
   };
@@ -260,14 +294,14 @@ const SCRIPT_NAME = "WME NLSC Overlay";
   // Reconcile persisted order against what's actually registered. Drop any
   // stale codes (catalog layer that no longer exists), and prepend newly-
   // registered codes (e.g. a newly-added default) at the top of the stack.
-  // Migration default for users whose state predates this field: user-added
-  // layers on top (matches the previous registration-order stacking), then
-  // defaults below in declared order — first-declared sits at the bottom.
+  // Fresh-install seed: user-added layers (newest on top) above defaults; the
+  // seed defaults follow NLSC_LAYERS declaration order — first-declared sits
+  // at the top of the sidebar (e.g. EMAP5, TOWN, CITY).
   const registeredCodes = new Set<string>(tileLayersByCode.keys());
   if (state.layerOrder.length === 0) {
     state.layerOrder = [
       ...state.userLayers.filter((c) => registeredCodes.has(c)).slice().reverse(),
-      ...NLSC_LAYERS.map((l) => l.code).slice().reverse(),
+      ...NLSC_LAYERS.map((l) => l.code).filter((c) => registeredCodes.has(c)),
     ];
   } else {
     const existing = new Set(state.layerOrder);
@@ -294,6 +328,9 @@ const SCRIPT_NAME = "WME NLSC Overlay";
   saveState(state);
   guardedRestack();
   controller.onOrderChange(() => guardedRestack());
+  // Promoting/demoting a layer between bands requires a re-stack; controller
+  // already persisted state.above, so we just need to apply it visually.
+  controller.onAboveChange(() => guardedRestack());
 
   // What we observed in real WME: toggling "Satellite imagery" in the layer
   // panel does NOT fire `addlayer`/`removelayer` on olMap. Instead WME
@@ -336,5 +373,6 @@ const SCRIPT_NAME = "WME NLSC Overlay";
     catalog,
     addUserLayer,
     removeUserLayer,
+    version: SCRIPT_VERSION,
   });
 })();

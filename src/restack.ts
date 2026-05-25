@@ -1,7 +1,9 @@
 /**
- * Re-stack NLSC overlay layers above WME's imagery band (so they actually
- * cover the satellite/aerial tiles the editor uses) but below editor vector
- * layers (roads, places, hazards, …) — and order them among themselves
+ * Re-stack NLSC overlay layers around WME's editor band — by default above
+ * the imagery band (so they actually cover the satellite/aerial tiles) and
+ * below editor vector layers (roads, places, hazards, …), with an optional
+ * per-layer "above" override that lifts a layer above the editor band so it
+ * paints on top of roads/objects. Within each sub-band, layers are ordered
  * per `order`.
  *
  * Why this exists: WME removes and re-adds the satellite imagery layer each
@@ -60,27 +62,39 @@ export function restackLayers(
   olMap: RestackOlMap,
   tileLayersByCode: ReadonlyMap<string, unknown>,
   order: readonly string[],
+  aboveCodes: ReadonlySet<string> = new Set(),
 ): void {
   const base = (olMap as { baseLayer?: unknown }).baseLayer;
   const snapshot = [...olMap.layers];
   const nlscSet = new Set(Array.from(tileLayersByCode.values()));
 
-  // Resolve `order` codes to actual layer instances, in sidebar order.
-  const bandTopFirst: unknown[] = [];
+  // Resolve `order` codes to actual layer instances, split into the two bands
+  // by `aboveCodes`. Each band preserves its sidebar top-to-bottom ordering.
+  const belowTopFirst: unknown[] = [];
+  const aboveTopFirst: unknown[] = [];
   for (const code of order) {
     const layer = tileLayersByCode.get(code);
-    if (layer && snapshot.includes(layer)) bandTopFirst.push(layer);
+    if (!layer || !snapshot.includes(layer)) continue;
+    if (aboveCodes.has(code)) aboveTopFirst.push(layer);
+    else belowTopFirst.push(layer);
   }
   // Array end = visually top, so reverse before writing: the bottom-of-band
   // layer goes first (lowest index), the top-of-band layer last (highest).
-  const bandLowestFirst = bandTopFirst.slice().reverse();
+  const belowLowestFirst = belowTopFirst.slice().reverse();
+  const aboveLowestFirst = aboveTopFirst.slice().reverse();
 
   // Imagery first (preserve existing relative order so toggling one aerial
-  // on/off doesn't shuffle the others), then our band, then everything else.
+  // on/off doesn't shuffle the others), then our below-band, then editor
+  // layers, then our above-band on top of everything.
   const imagery = snapshot.filter((l) => !nlscSet.has(l) && isImageryLayer(l, base));
   const others = snapshot.filter((l) => !nlscSet.has(l) && !isImageryLayer(l, base));
 
-  const target: unknown[] = [...imagery, ...bandLowestFirst, ...others];
+  const target: unknown[] = [
+    ...imagery,
+    ...belowLowestFirst,
+    ...others,
+    ...aboveLowestFirst,
+  ];
 
   // Skip no-op writes — each setLayerIndex re-applies CSS z-indexes across
   // every layer in olMap.layers, so suppressing redundant calls matters.

@@ -1,11 +1,14 @@
 import type { NlscLayer } from "./layers";
 import type { NlscState } from "./state";
 import type { NlscController } from "./controller";
+import { renderTermsLink } from "./terms";
 
 export interface SidebarCallbacks {
   catalog: readonly NlscLayer[];
   addUserLayer: (code: string) => NlscLayer | null;
   removeUserLayer: (code: string) => void;
+  /** Script version from the userscript metablock; shown next to the heading. */
+  version?: string;
 }
 
 const STYLE_ID = "nlsc-styles";
@@ -41,6 +44,17 @@ const NLSC_STYLES = `
 .nlsc-toggle input:checked + .nlsc-toggle-slider { background-color: #34c759; }
 .nlsc-toggle input:checked + .nlsc-toggle-slider::before { transform: translateX(16px); }
 .nlsc-toggle input:focus-visible + .nlsc-toggle-slider { box-shadow: 0 0 0 3px rgba(52,199,89,0.35); }
+
+/* "Above WME objects" icon button — distinctly different SHAPE (square)
+   from the pill toggle on the left, so the two cannot be visually confused.
+   SVG glyph depicts a "bring to front" stack: a dim back square + a
+   filled front square. The button itself becomes orange when active. */
+.nlsc-above-btn { flex-shrink: 0; width: 26px; height: 22px; border-radius: 6px; border: 1px solid rgba(128,128,128,0.35); background: transparent; color: inherit; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.15s, background-color 0.15s, color 0.15s, border-color 0.15s, transform 0.05s; }
+.nlsc-above-btn:hover { opacity: 1; }
+.nlsc-above-btn:active { transform: scale(0.94); }
+.nlsc-above-btn[aria-pressed="true"] { background: #ff9500; border-color: #ff9500; color: #fff; opacity: 1; }
+.nlsc-above-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,149,0,0.35); }
+.nlsc-above-btn svg { width: 14px; height: 14px; display: block; pointer-events: none; }
 
 .nlsc-remove { background: transparent; border: none; color: inherit; cursor: pointer; padding: 2px 7px; border-radius: 6px; opacity: 0.55; font-size: 14px; line-height: 1; transition: opacity 0.15s, background-color 0.15s, color 0.15s; }
 .nlsc-remove:hover { opacity: 1; background: rgba(255,59,48,0.12); color: #ff3b30; }
@@ -100,11 +114,13 @@ export function renderSidebar(
   callbacks: SidebarCallbacks,
 ): void {
   injectStyles();
-  tabLabel.textContent = "NLSC";
+  tabLabel.textContent = "NLSC Overlay";
   tabPane.classList.add("nlsc-panel");
 
   const heading = document.createElement("h4");
-  heading.textContent = "NLSC Overlay";
+  heading.textContent = callbacks.version
+    ? `NLSC Overlay v${callbacks.version}`
+    : "NLSC Overlay";
   tabPane.appendChild(heading);
 
   // Catalog picker — placed *above* the layer rows so it's never hidden
@@ -132,8 +148,11 @@ export function renderSidebar(
     optionByCode.set(layer.code, opt);
   };
 
+  // Filter against the live registered set (state.layerOrder) rather than
+  // userLayers alone, so defaults that have been removed reappear in the picker.
+  const registeredCodes = new Set(state.layerOrder);
   for (const layer of callbacks.catalog) {
-    if (!state.userLayers.includes(layer.code)) addOption(layer);
+    if (!registeredCodes.has(layer.code)) addOption(layer);
   }
 
   const addBtn = document.createElement("button");
@@ -151,7 +170,6 @@ export function renderSidebar(
   const layerList = document.createElement("div");
   tabPane.appendChild(layerList);
 
-  const defaultCodes = new Set(defaults.map((l) => l.code));
   const rowByCode = new Map<string, HTMLElement>();
   const layerByCode = new Map<string, NlscLayer>();
   for (const l of defaults) layerByCode.set(l.code, l);
@@ -220,16 +238,16 @@ export function renderSidebar(
   };
 
   const buildRow = (layer: NlscLayer): HTMLElement => {
-    const isUserAdded = !defaultCodes.has(layer.code);
+    // All rows (defaults + user-added) are removable. Removing a hardcoded
+    // default also persists a `removedDefaults` flag on the index.ts side so
+    // it doesn't auto-reinstate on the next reload.
     let refs: RowRefs;
-    refs = renderLayerRow(layer, controller, state, isUserAdded
-      ? () => {
-          callbacks.removeUserLayer(layer.code);
-          if (refs.row.parentNode === layerList) layerList.removeChild(refs.row);
-          rowByCode.delete(layer.code);
-          addOption(layer);
-        }
-      : null);
+    refs = renderLayerRow(layer, controller, state, () => {
+      callbacks.removeUserLayer(layer.code);
+      if (refs.row.parentNode === layerList) layerList.removeChild(refs.row);
+      rowByCode.delete(layer.code);
+      if (!optionByCode.has(layer.code)) addOption(layer);
+    });
     wireRowListeners(layer, controller, refs);
     wireDnD(refs.row, refs.grip, layer.code);
     rowByCode.set(layer.code, refs.row);
@@ -268,12 +286,15 @@ export function renderSidebar(
     }
     placeholderOpt.selected = true;
   });
+
+  renderTermsLink(tabPane);
 }
 
 interface RowRefs {
   row: HTMLElement;
   grip: HTMLElement;
   checkbox: HTMLInputElement;
+  aboveBtn: HTMLButtonElement;
   slider: HTMLInputElement;
   valueLabel: HTMLElement;
   updateColorUi: (color: string | null) => void;
@@ -449,6 +470,28 @@ function renderLayerRow(
   const colorCtl = renderColorControl(layer, state, controller);
   headerRow.appendChild(colorCtl.swatch);
 
+  // "Above WME objects" icon button — flips this layer between the default
+  // below-objects band and the above-objects band. Radio-style: only one
+  // layer can hold the slot at a time, so this button reflects whether THIS
+  // layer is the one currently pinned above. Hidden entirely when the layer
+  // is not visible (the action would be a no-op anyway).
+  const aboveBtn = document.createElement("button");
+  aboveBtn.type = "button";
+  aboveBtn.className = "nlsc-above-btn";
+  aboveBtn.title = "置於物件之上";
+  const initialAbove = state.aboveCode === layer.code;
+  aboveBtn.setAttribute("aria-pressed", initialAbove ? "true" : "false");
+  if (!(state.visible[layer.code] ?? false)) aboveBtn.style.display = "none";
+  // Inline SVG so the glyph picks up the button's `currentColor` (muted when
+  // off, white-on-orange when on). Two squares: dim back, filled front =
+  // canonical "bring to front" iconography.
+  aboveBtn.innerHTML =
+    '<svg viewBox="0 0 16 16" aria-hidden="true">' +
+    '<rect x="2" y="5.5" width="7.5" height="7.5" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>' +
+    '<rect x="6.5" y="2" width="7.5" height="7.5" rx="1.4" fill="currentColor"/>' +
+    "</svg>";
+  headerRow.appendChild(aboveBtn);
+
   if (onRemove) {
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
@@ -486,12 +529,17 @@ function renderLayerRow(
     controller.setVisible(layer.code, checkbox.checked);
   });
 
+  aboveBtn.addEventListener("click", () => {
+    const next = aboveBtn.getAttribute("aria-pressed") !== "true";
+    controller.setAbove(layer.code, next);
+  });
+
   slider.addEventListener("input", () => {
     valueLabel.textContent = `${slider.value}%`;
     controller.setOpacity(layer.code, Number(slider.value) / 100);
   });
 
-  return { row, grip, checkbox, slider, valueLabel, updateColorUi: colorCtl.updateUi };
+  return { row, grip, checkbox, aboveBtn, slider, valueLabel, updateColorUi: colorCtl.updateUi };
 }
 
 function wireRowListeners(
@@ -502,6 +550,10 @@ function wireRowListeners(
   controller.onVisibleChange((code, visible) => {
     if (code !== layer.code) return;
     if (refs.checkbox.checked !== visible) refs.checkbox.checked = visible;
+    // "Above WME objects" is meaningless on a hidden layer — hide the button
+    // so the row stays uncluttered. Persisted aboveCode survives so re-enabling
+    // visibility restores the pinned state without an extra click.
+    refs.aboveBtn.style.display = visible ? "" : "none";
   });
 
   controller.onOpacityChange((code, opacity) => {
@@ -516,5 +568,13 @@ function wireRowListeners(
   controller.onColorChange((code, color) => {
     if (code !== layer.code) return;
     refs.updateColorUi(color);
+  });
+
+  controller.onAboveChange((code, above) => {
+    if (code !== layer.code) return;
+    const want = above ? "true" : "false";
+    if (refs.aboveBtn.getAttribute("aria-pressed") !== want) {
+      refs.aboveBtn.setAttribute("aria-pressed", want);
+    }
   });
 }

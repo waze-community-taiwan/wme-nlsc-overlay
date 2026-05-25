@@ -5,7 +5,7 @@
   "description": "Overlay Taiwan NLSC WMTS tiles in Waze Map Editor",
   "author": "Waze Community Taiwan",
   "license": "MIT",
-  "match": "https://www.waze.com/*editor*",
+  "match": ["https://www.waze.com/*editor*","https://beta.waze.com/*editor*"],
   "grant": [
     "unsafeWindow",
     "GM_xmlhttpRequest"
