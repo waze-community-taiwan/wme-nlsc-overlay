@@ -6,14 +6,19 @@ Personal-use Tampermonkey userscript that overlays Taiwan NLSC WMTS tiles in the
 
 ## Critical Knowledge
 
-**NLSC WMTS Axis Order:** The NLSC WMTS API uses `{z}/{y}/{x}` tile indexing, **not** the standard Web Mercator `{z}/{x}/{y}`. This is a known regression vector; ensure tile URL builders in Phase 2 implement the correct order.
+**NLSC WMTS Axis Order:** The NLSC WMTS API uses `{z}/{y}/{x}` tile indexing, **not** the standard Web Mercator `{z}/{x}/{y}`. This is a known regression vector — see the URL template in `src/layers.ts` and the builder in `src/index.ts`. Preserve `{y}` before `{x}` if you touch either.
 
-## Four-Phase Roadmap
+## Status
 
-- **Phase 0 (DONE):** Repo scaffold, build tooling, test harness, MCP registration.
-- **Phase 1:** WME SDK initialization, config loading, NLSC layer definitions.
-- **Phase 2:** Tile layer registration with WME, rendering on map.
-- **Phase 3:** Sidebar UI, LayerSwitcher integration, user settings.
+Shipping on semver (current: v0.2.2 in `package.json`). The original four-phase roadmap (scaffold → SDK init → tile rendering → sidebar UI) is fully delivered. Current feature surface:
+
+- WME SDK init and tile-layer registration (`src/index.ts`).
+- NLSC layer definitions with seed defaults EMAP5 / TOWN / CITY (`src/layers.ts`).
+- Sidebar UI with toggles, opacity sliders, drag-reorder, per-layer color tinting, "above objects" pin, removable defaults (`src/sidebar.ts`).
+- LayerSwitcher bidirectional sync (`src/index.ts`).
+- WMTS capabilities catalog fetch for adding more layers (`src/catalog.ts`).
+- Layer re-stacking around the editor band (`src/restack.ts`).
+- TOS dialog (`src/terms.ts`).
 
 ## Build & Test
 
@@ -40,9 +45,12 @@ Or use Claude Code's Playwright MCP tool directly (available at project scope).
 
 ## Extension Points
 
-- **src/index.ts** — Main userscript entry. Comments mark Phases 1–3 tasks.
-- **src/layers.ts** (TBD) — NLSC layer codes and metadata. User supplies canonical codes from NLSC WMTS provider.
-- **tests/fixtures/mock-wme.html** — Standalone OpenLayers harness for fixture-based testing (Phase 2+).
+- **src/index.ts** — Main userscript entry: top-frame gate, SDK await, tile layer registration, LayerSwitcher wiring.
+- **src/layers.ts** — Seed NLSC layer definitions (EMAP5, TOWN, CITY) and the WMTS URL template constant.
+- **src/catalog.ts** — Fetches `https://wmts.nlsc.gov.tw/wmts/1.0.0/WMTSCapabilities.xml` to populate the "add layer" picker.
+- **src/sidebar.ts** — Sidebar UI rendering and event wiring.
+- **src/state.ts** — `localStorage`-backed user settings.
+- **tests/fixtures/mock-wme.html** — Standalone OpenLayers harness for fixture-based testing.
 
 ## Dependencies
 
@@ -54,12 +62,11 @@ Or use Claude Code's Playwright MCP tool directly (available at project scope).
 
 ## Git Workflow
 
-- One initial commit per phase.
-- Use feature branches for multi-commit work within a phase.
-- No force-pushes to main (when applicable).
+- Feature branches for non-trivial work; PR into `main`.
+- Releases are tagged via `chore(release): vX.Y.Z` commits; the userscript is also staged at the repo root for the Greasy Fork webhook (see commit `d6f46e6`).
+- No force-pushes to `main`.
 
-## Notes for Next Phase
+## Notes
 
-- Layer codes live in `src/layers.ts` (TBD).
-- NLSC provider URL and authentication (if needed) TBD.
-- WME Layer registration API documented in WME SDK.
+- NLSC WMTS base: `https://wmts.nlsc.gov.tw/wmts/` — public, no auth (`credentials: "omit"` in `src/catalog.ts`).
+- Built userscript ships at both `dist/wme-nlsc-overlay.user.js` and `wme-nlsc-overlay.user.js` (repo root, for Greasy Fork).
