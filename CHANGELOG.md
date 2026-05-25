@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Features
+
+- **terms:** add a 服務使用條款 link in the NLSC sidebar that opens a modal with the full Traditional Chinese TOS (mirrors NLSC's own service terms; covers attribution, no-bulk-download, copyright, disclaimers, governing law). New `TERMS.md` at the repo root + `src/terms.ts` carry the canonical text.
+- **sidebar:** add an "above WME objects" radio-style pin (orange square button) so a single NLSC layer can be promoted above editor vector objects (roads, places, hazards) instead of always sitting between imagery and editor layers. State is preserved when the layer is hidden and the button is hidden on invisible layers.
+- **sidebar:** every layer row is now removable via the ✕ button, including the hardcoded seed defaults. Removed defaults are tracked in `state.removedDefaults` and stay un-registered across reloads until the user re-adds them from the catalog dropdown.
+- **sidebar:** show the script version next to the heading (e.g. "NLSC Overlay v0.2.2"). Version is baked into the bundle by Rollup at build time so it does not depend on `GM_info`.
+- **layers:** trim hardcoded seed defaults to EMAP5, TOWN, CITY (EMAP2 and LANDSECT2 are still re-addable from the catalog dropdown).
+- **metablock:** extend `@match` to also include `https://beta.waze.com/*editor*` so the script runs on the WME beta editor.
+
+### Bug Fixes
+
+- **sidebar:** catalog dropdown now filters against the live registered layer set instead of `userLayers` alone, so a removed seed default reappears in the picker and stays addable offline (catalog-fetch failures no longer hide it).
+- **restack:** split overlays into a below-band (above imagery, below editor objects) and an above-band (above editor objects), with at most one layer in the above-band at a time (controller enforces radio semantics).
+- **state:** migrate legacy `above: Record<string, boolean>` storage to the new single-slot `aboveCode: string | null` model. If multiple layers were previously pinned above, the one highest in `layerOrder` wins.
+
+### Tests
+
+- New `tests/unit/terms.test.ts` covers the TOS link → modal flow, close button, backdrop/ESC dismissal, and double-open guard.
+- Expanded `tests/unit/sidebar.test.ts`, `tests/unit/restack.test.ts`, `tests/unit/state.test.ts`, and `tests/unit/add-user-layer.test.ts` for the new above-objects pin, removable defaults, and state migration.
+
 ## [0.2.2](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.2.2) — 2026-05-24
 
 [Compare `v0.2.1...v0.2.2`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.2.1...v0.2.2)

@@ -215,6 +215,71 @@ describe("restackLayers", () => {
     expect(names(map)).toEqual(["satellite_imagery", "A", "roads"]);
   });
 
+  it("above-band: codes in aboveCodes stack on top of editor layers", () => {
+    const base: FakeLayer = { name: "satellite_imagery", isBaseLayer: true };
+    const emap: FakeLayer = { name: "EMAP5" };
+    const town: FakeLayer = { name: "TOWN" };
+    const roads: FakeLayer = { name: "roads" };
+    const venues: FakeLayer = { name: "venues" };
+
+    const map = makeFakeMap([base, roads, venues, emap, town], base);
+    const byCode = new Map<string, FakeLayer>([
+      ["EMAP5", emap],
+      ["TOWN", town],
+    ]);
+
+    // TOWN promoted above editor layers; EMAP5 stays below.
+    restackLayers(map, byCode, ["EMAP5", "TOWN"], new Set(["TOWN"]));
+
+    expect(names(map)).toEqual([
+      "satellite_imagery",
+      "EMAP5",
+      "roads",
+      "venues",
+      "TOWN",
+    ]);
+  });
+
+  it("above-band: two promoted layers preserve their layerOrder relative position", () => {
+    const base: FakeLayer = { name: "satellite_imagery", isBaseLayer: true };
+    const a: FakeLayer = { name: "A" };
+    const b: FakeLayer = { name: "B" };
+    const c: FakeLayer = { name: "C" };
+    const roads: FakeLayer = { name: "roads" };
+
+    const map = makeFakeMap([base, roads, a, b, c], base);
+    const byCode = new Map<string, FakeLayer>([
+      ["A", a],
+      ["B", b],
+      ["C", c],
+    ]);
+
+    // Sidebar order [A, B, C]; A and C are above, B is below.
+    // Above-band stacks A on top of C (A is higher in layerOrder = higher Z).
+    restackLayers(map, byCode, ["A", "B", "C"], new Set(["A", "C"]));
+
+    expect(names(map)).toEqual([
+      "satellite_imagery",
+      "B",
+      "roads",
+      "C",
+      "A",
+    ]);
+  });
+
+  it("above-band: empty aboveCodes set behaves identically to the legacy 3-arg call", () => {
+    const base: FakeLayer = { name: "satellite_imagery", isBaseLayer: true };
+    const emap: FakeLayer = { name: "EMAP5" };
+    const roads: FakeLayer = { name: "roads" };
+
+    const map = makeFakeMap([base, roads, emap], base);
+    const byCode = new Map<string, FakeLayer>([["EMAP5", emap]]);
+
+    restackLayers(map, byCode, ["EMAP5"], new Set());
+
+    expect(names(map)).toEqual(["satellite_imagery", "EMAP5", "roads"]);
+  });
+
   // Live WME does NOT use a single base layer for imagery. olMap.baseLayer is
   // a transparent `BASE_LAYER` placeholder; the visible satellite tiles ride
   // on a non-base `satellite_imagery` layer, and high-res aerials are XYZ

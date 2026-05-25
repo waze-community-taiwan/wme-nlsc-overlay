@@ -55,7 +55,7 @@ function setupRealAddFlow(opts: {
       checkboxes.add(name);
     });
 
-  const state: NlscState = { visible: {}, opacity: {}, color: {}, userLayers: [], layerOrder: [] };
+  const state: NlscState = { visible: {}, opacity: {}, color: {}, aboveCode: null, userLayers: [], removedDefaults: [], layerOrder: [] };
 
   // Build controller seeded with default-layer bindings.
   const defaultBindings: LayerBinding[] = opts.defaultLayers.map((layer) => ({

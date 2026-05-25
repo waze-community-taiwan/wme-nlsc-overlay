@@ -31,23 +31,17 @@ export interface NlscLayer {
 
 const NLSC_ATTRIBUTION = "© 內政部國土測繪中心 NLSC";
 
-/** Default NLSC WMTS layers — always present, not removable. */
+/**
+ * First-install seed layers. Pre-registered on a fresh state, but user-removable
+ * via the sidebar ✕ button. Once removed, they can be re-added from the catalog
+ * dropdown like any other catalog layer.
+ */
 export const NLSC_LAYERS: readonly NlscLayer[] = [
   {
     code: "EMAP5",
     title: "臺灣通用電子地圖(等高線+門牌)",
     format: "jpeg",
     name: "EMAP5 · jpeg · 臺灣通用電子地圖(等高線+門牌)",
-    minZoom: 0,
-    maxZoom: 19,
-    attribution: NLSC_ATTRIBUTION,
-    defaultOpacity: 0.5,
-  },
-  {
-    code: "EMAP2",
-    title: "臺灣通用電子地圖透明",
-    format: "png",
-    name: "EMAP2 · png · 臺灣通用電子地圖透明",
     minZoom: 0,
     maxZoom: 19,
     attribution: NLSC_ATTRIBUTION,
@@ -68,16 +62,6 @@ export const NLSC_LAYERS: readonly NlscLayer[] = [
     title: "縣市界",
     format: "png",
     name: "CITY · png · 縣市界",
-    minZoom: 0,
-    maxZoom: 19,
-    attribution: NLSC_ATTRIBUTION,
-    defaultOpacity: 0.7,
-  },
-  {
-    code: "LANDSECT2",
-    title: "地段外圍圖(段籍圖)(類別)",
-    format: "png",
-    name: "LANDSECT2 · png · 地段外圍圖(段籍圖)(類別)",
     minZoom: 0,
     maxZoom: 19,
     attribution: NLSC_ATTRIBUTION,

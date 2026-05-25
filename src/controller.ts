@@ -12,6 +12,7 @@ export interface LayerBinding {
 export type VisibilityListener = (code: string, visible: boolean) => void;
 export type OpacityListener = (code: string, opacity: number) => void;
 export type ColorListener = (code: string, color: string | null) => void;
+export type AboveListener = (code: string, above: boolean) => void;
 export type OrderListener = (order: readonly string[]) => void;
 
 /**
@@ -24,6 +25,7 @@ export class NlscController {
   private readonly visListeners: VisibilityListener[] = [];
   private readonly opListeners: OpacityListener[] = [];
   private readonly colorListeners: ColorListener[] = [];
+  private readonly aboveListeners: AboveListener[] = [];
   private readonly orderListeners: OrderListener[] = [];
 
   constructor(
@@ -63,6 +65,32 @@ export class NlscController {
     for (const fn of this.colorListeners) fn(code, color);
   }
 
+  /**
+   * Radio-style: only one layer can be "above" at a time. Promoting layer X
+   * automatically demotes whatever previously held the slot. Demoting X is
+   * a no-op unless X currently holds the slot. Listeners fire once per
+   * affected layer (the swap path fires twice: old=false, new=true) so each
+   * sidebar row can update its own `aria-pressed` independently.
+   */
+  setAbove(code: string, above: boolean): void {
+    if (!this.byCode.has(code)) return;
+    const current = this.state.aboveCode;
+    if (above) {
+      if (current === code) return;
+      this.state.aboveCode = code;
+      saveState(this.state);
+      if (current !== null) {
+        for (const fn of this.aboveListeners) fn(current, false);
+      }
+      for (const fn of this.aboveListeners) fn(code, true);
+    } else {
+      if (current !== code) return;
+      this.state.aboveCode = null;
+      saveState(this.state);
+      for (const fn of this.aboveListeners) fn(code, false);
+    }
+  }
+
   addBinding(binding: LayerBinding): void {
     this.byCode.set(binding.layer.code, binding);
   }
@@ -98,6 +126,10 @@ export class NlscController {
 
   onColorChange(handler: ColorListener): void {
     this.colorListeners.push(handler);
+  }
+
+  onAboveChange(handler: AboveListener): void {
+    this.aboveListeners.push(handler);
   }
 
   onOrderChange(handler: OrderListener): void {
