@@ -114,7 +114,7 @@ export function renderSidebar(
   callbacks: SidebarCallbacks,
 ): void {
   injectStyles();
-  tabLabel.textContent = "NLSC";
+  tabLabel.textContent = "NLSC Overlay";
   tabPane.classList.add("nlsc-panel");
 
   const heading = document.createElement("h4");
