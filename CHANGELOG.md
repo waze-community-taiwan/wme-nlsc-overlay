@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.6.0) — 2026-05-30
+
+[Compare `v0.3.0...v0.6.0`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.3.0...v0.6.0)
+
+### Features
+
+- **floatbox:** add draggable floating layer box overlay ([`b2cba99`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/b2cba9940c95e47e51ba9d2fea25485cfff874af))
+
+### Bug Fixes
+
+- **ci:** restore committed root userscript for Greasy Fork sync ([`1a939fd`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/1a939fd0417d4385a0e08b68ba9f1a35c9097f29))
+- **ci:** pin wme-sdk-typings to immutable versioned URL ([`9ceea91`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/9ceea91efd83dfb61a5ed30957ed4bd0406472e7))
+- **floatbox:** update title text from Chinese to English ([`1d87ab0`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/1d87ab0c997647977e7420640428e5c340a8e122))
+
+### Refactors
+
+- **README:** update project description and features for clarity ([`bcf1e6d`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/bcf1e6dcd1b941ee77f0ce9a8ba69ce29cbf2b3c))
+
+### Chores
+
+- **release:** v0.5.0 ([`b88d6b4`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/b88d6b488d7564004fb46f71b6545a9d56bdaa92))
+- **release:** v0.4.0 ([`3421c8a`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/3421c8a39e4d3f7b99cad70ebceac7e994b55d23))
+- **ci:** publish userscript via release asset only, not repo root ([`a4d6167`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/a4d61674ae6f7cc97f88b4877f118caf09185466))
+- stop tracking .kiro files and add to gitignore ([`b8b3dee`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/b8b3deef7cc046c597477343ffc1b37692a41045))
+- **.kiro:** add development environment hooks ([`bbb0b62`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/bbb0b6256e1665202877319568746b05eec29658))
+
+### Other
+
+- Refactor code structure for improved readability and maintainability ([`8e2436b`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/8e2436b195303bc23e232c22b2b562d2fb2bd157))
+
+**Install:** [`wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/download/v0.6.0/wme-nlsc-overlay.user.js) — open with Tampermonkey/Violentmonkey/Greasemonkey to install.
+Always-latest link: [`releases/latest/download/wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js).
 ## [0.5.0](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.5.0) — 2026-05-30
 
 [Compare `v0.4.0...v0.5.0`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.4.0...v0.5.0)

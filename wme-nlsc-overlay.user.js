@@ -2,7 +2,7 @@
 // @name        WME NLSC Overlay
 // @description Overlay Taiwan NLSC WMTS tiles in Waze Map Editor
 // @namespace   https://github.com/waze-community-taiwan/wme-nlsc-overlay
-// @version     0.5.0
+// @version     0.6.0
 // @author      Waze Community Taiwan
 // @license     MIT
 // @match       https://www.waze.com/*editor*
@@ -20,7 +20,7 @@
 (function () {
     'use strict';
 
-    const __SCRIPT_VERSION__ = "0.5.0";
+    const __SCRIPT_VERSION__ = "0.6.0";
 
     // NLSC WMTS template: https://wmts.nlsc.gov.tw/wmts/{LAYER}/default/GoogleMapsCompatible/{z}/{y}/{x}  (note: {y} before {x} — WMTS axis order, NOT slippy)
     const NLSC_ATTRIBUTION = "© 內政部國土測繪中心 NLSC";
