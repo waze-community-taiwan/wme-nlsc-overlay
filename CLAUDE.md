@@ -63,10 +63,10 @@ Or use Claude Code's Playwright MCP tool directly (available at project scope).
 ## Git Workflow
 
 - Feature branches for non-trivial work; PR into `main`.
-- Releases are tagged via `chore(release): vX.Y.Z` commits; the userscript is also staged at the repo root for the Greasy Fork webhook (see commit `d6f46e6`).
+- Releases are tagged via `chore(release): vX.Y.Z` commits; the built userscript is published only as a GitHub Release asset (not committed to the repo). Point Greasy Fork's sync URL at `.../releases/latest/download/wme-nlsc-overlay.user.js`.
 - No force-pushes to `main`.
 
 ## Notes
 
 - NLSC WMTS base: `https://wmts.nlsc.gov.tw/wmts/` — public, no auth (`credentials: "omit"` in `src/catalog.ts`).
-- Built userscript ships at both `dist/wme-nlsc-overlay.user.js` and `wme-nlsc-overlay.user.js` (repo root, for Greasy Fork).
+- Built userscript is produced at `dist/wme-nlsc-overlay.user.js` and shipped only as a GitHub Release asset; it is not committed to the repo root (gitignored).
