@@ -1,3 +1,20 @@
+/**
+ * Persisted preferences for the floating layer box — the draggable in-page
+ * overlay that lists visible layers and provides a per-layer "put on top"
+ * control. Grouped as a nested object so backward compatibility needs only a
+ * single default-fill in [[loadState]].
+ */
+export interface FloatBoxState {
+  /** Whether the floating box is shown. Defaults to `true`. */
+  enabled: boolean;
+  /** Box opacity in the inclusive range `0.1`–`1.0`. Defaults to `0.9`. */
+  opacity: number;
+  /** Last on-screen x position in px from the viewport left; `null` = default. */
+  x: number | null;
+  /** Last on-screen y position in px from the viewport top; `null` = default. */
+  y: number | null;
+}
+
 /** Persisted user preferences for NLSC overlay layers. */
 export interface NlscState {
   visible: Record<string, boolean>;
@@ -32,10 +49,37 @@ export interface NlscState {
    * are dropped, newly-registered codes are prepended.
    */
   layerOrder: string[];
+  /** Floating layer box preferences (enabled flag, opacity, last position). */
+  floatBox: FloatBoxState;
 }
 
 const STORAGE_KEY = "wme-nlsc-overlay:state";
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+/** Default floating-box settings, used on fresh installs and as fallbacks. */
+function defaultFloatBox(): FloatBoxState {
+  return { enabled: true, opacity: 0.9, x: null, y: null };
+}
+
+/**
+ * Validate the persisted `floatBox` defensively, matching the tolerant style of
+ * the rest of [[loadState]]. Missing key or invalid fields fall back to the
+ * defaults so older states (no `floatBox`) and corrupt values stay safe.
+ */
+function parseFloatBox(value: unknown): FloatBoxState {
+  if (typeof value !== "object" || value === null) return defaultFloatBox();
+  const raw = value as Partial<Record<keyof FloatBoxState, unknown>>;
+  const enabled = typeof raw.enabled === "boolean" ? raw.enabled : true;
+  const opacity =
+    typeof raw.opacity === "number" && Number.isFinite(raw.opacity)
+      ? Math.min(1.0, Math.max(0.1, raw.opacity))
+      : 0.9;
+  const x =
+    typeof raw.x === "number" && Number.isFinite(raw.x) ? raw.x : null;
+  const y =
+    typeof raw.y === "number" && Number.isFinite(raw.y) ? raw.y : null;
+  return { enabled, opacity, x, y };
+}
 
 function emptyState(): NlscState {
   return {
@@ -46,6 +90,7 @@ function emptyState(): NlscState {
     color: {},
     aboveCode: null,
     layerOrder: [],
+    floatBox: defaultFloatBox(),
   };
 }
 
@@ -109,6 +154,7 @@ export function loadState(): NlscState {
           ? parsed.removedDefaults.filter((c): c is string => typeof c === "string")
           : [],
       layerOrder,
+      floatBox: parseFloatBox(parsed?.floatBox),
     };
   } catch {
     return emptyState();
