@@ -10,3 +10,4 @@ tests/manual/*.log
 .claude/*
 .playwright*
 RELEASE_NOTES.md
+.kiro/
