@@ -33,6 +33,13 @@ export interface BoxControls {
   setOpacity: (opacity: number) => void;
   isEnabled: () => boolean;
   getOpacity: () => number;
+  /**
+   * Subscribe to enabled-state changes. Fires for every transition regardless
+   * of origin (sidebar toggle, the box's own close button, or programmatic),
+   * letting the sidebar toggle stay in sync when the box is closed via its × .
+   * Returns an unsubscribe function.
+   */
+  onEnabledChange: (listener: (enabled: boolean) => void) => () => void;
 }
 
 export interface FloatingBoxHandle {
@@ -59,8 +66,16 @@ const EMPTY_MESSAGE = "目前沒有顯示中的圖層";
 
 const NLSC_FLOATBOX_STYLES = `
 .nlsc-floatbox { position: fixed; z-index: 2147483000; min-width: 200px; max-width: 320px; box-sizing: border-box; border-radius: 10px; border: 1px solid var(--hairline, rgba(128,128,128,0.3)); background: var(--background_default, #fff); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.28); font-size: 13px; overflow: hidden; }
-.nlsc-floatbox-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: move; user-select: none; border-bottom: 1px solid var(--hairline, rgba(128,128,128,0.2)); background: rgba(128,128,128,0.08); }
+.nlsc-floatbox-header { display: flex; align-items: center; gap: 8px; padding: 2px 12px; cursor: move; user-select: none; border-bottom: 1px solid var(--hairline, rgba(128,128,128,0.2)); background: rgba(128,128,128,0.08); }
 .nlsc-floatbox-title { flex: 1; min-width: 0; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Close_Control: a top-right × that hides the box (persisting enabled=false).
+   Lives inside the draggable header but is excluded from drag (see wireDrag). */
+.nlsc-floatbox-close { flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; border: none; background: transparent; color: inherit; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.15s, background-color 0.15s, transform 0.05s; }
+.nlsc-floatbox-close:hover { opacity: 1; background: rgba(128,128,128,0.18); }
+.nlsc-floatbox-close:active { transform: scale(0.92); }
+.nlsc-floatbox-close:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,149,0,0.35); }
+.nlsc-floatbox-close svg { width: 13px; height: 13px; display: block; pointer-events: none; }
 .nlsc-floatbox-rows { padding: 6px 8px; max-height: 320px; overflow-y: auto; }
 .nlsc-floatbox-empty { padding: 8px 4px; opacity: 0.65; text-align: center; }
 .nlsc-floatbox-row { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-radius: 6px; }
@@ -92,6 +107,12 @@ const ABOVE_GLYPH_SVG =
   '<svg viewBox="0 0 16 16" aria-hidden="true">' +
   '<rect x="2" y="5.5" width="7.5" height="7.5" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>' +
   '<rect x="6.5" y="2" width="7.5" height="7.5" rx="1.4" fill="currentColor"/>' +
+  "</svg>";
+
+/** Inline "close" glyph (an ×) for the header's Close_Control. */
+const CLOSE_GLYPH_SVG =
+  '<svg viewBox="0 0 16 16" aria-hidden="true">' +
+  '<path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>' +
   "</svg>";
 
 function injectStyles(): void {
@@ -128,6 +149,9 @@ export function createFloatingBox(deps: FloatingBoxDeps): FloatingBoxHandle {
   let rowsEl: HTMLElement | null = null;
   // Deferred-attach interval handle, active only while document.body is absent.
   let attachTimer: ReturnType<typeof setInterval> | null = null;
+  // Enabled-state subscribers (e.g. the sidebar toggle), notified on every
+  // transition so the views stay in sync when the box closes via its × button.
+  const enabledListeners = new Set<(enabled: boolean) => void>();
 
   // Drag state. `dragging` gates pointermove/up so a stray move (or a move
   // after the pointer was released) is ignored. The offset is the distance from
@@ -156,6 +180,17 @@ export function createFloatingBox(deps: FloatingBoxDeps): FloatingBoxHandle {
     title.className = "nlsc-floatbox-title";
     title.textContent = "NLSC Overlay";
     header.appendChild(title);
+
+    // Close_Control: hides the box (enabled=false). Reopened from the sidebar's
+    // "顯示懸浮視窗" toggle, which mirrors this via onEnabledChange.
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "nlsc-floatbox-close";
+    closeBtn.title = "關閉懸浮視窗";
+    closeBtn.setAttribute("aria-label", "關閉懸浮視窗");
+    closeBtn.innerHTML = CLOSE_GLYPH_SVG;
+    closeBtn.addEventListener("click", () => setEnabled(false));
+    header.appendChild(closeBtn);
 
     // Row container; populated by renderRows() in task 4.1.
     const rows = document.createElement("div");
@@ -243,6 +278,9 @@ export function createFloatingBox(deps: FloatingBoxDeps): FloatingBoxHandle {
   function wireDrag(handle: HTMLElement): void {
     handle.addEventListener("pointerdown", (e: PointerEvent) => {
       if (!element) return;
+      // A pointerdown on an interactive header control (e.g. the close button)
+      // must not start a drag, so its click fires cleanly (Req 3.5).
+      if ((e.target as HTMLElement | null)?.closest("button")) return;
       const rect = element.getBoundingClientRect();
       // Distance from pointer to the box top-left, held constant for the drag.
       dragOffsetX = e.clientX - rect.left;
@@ -412,6 +450,7 @@ export function createFloatingBox(deps: FloatingBoxDeps): FloatingBoxHandle {
   }
 
   function setEnabled(enabled: boolean): void {
+    const changed = state.floatBox.enabled !== enabled;
     state.floatBox.enabled = enabled;
     saveState(state);
     if (enabled) {
@@ -419,6 +458,9 @@ export function createFloatingBox(deps: FloatingBoxDeps): FloatingBoxHandle {
     } else {
       stopRetry();
       unmount();
+    }
+    if (changed) {
+      for (const listener of enabledListeners) listener(enabled);
     }
   }
 
@@ -436,9 +478,15 @@ export function createFloatingBox(deps: FloatingBoxDeps): FloatingBoxHandle {
     return state.floatBox.opacity;
   }
 
+  function onEnabledChange(listener: (enabled: boolean) => void): () => void {
+    enabledListeners.add(listener);
+    return () => enabledListeners.delete(listener);
+  }
+
   function destroy(): void {
     stopRetry();
     unmount();
+    enabledListeners.clear();
     element = null;
     headerEl = null;
     rowsEl = null;
@@ -465,6 +513,12 @@ export function createFloatingBox(deps: FloatingBoxDeps): FloatingBoxHandle {
     if (!mount()) scheduleRetry();
   }
 
-  const controls: BoxControls = { setEnabled, setOpacity, isEnabled, getOpacity };
+  const controls: BoxControls = {
+    setEnabled,
+    setOpacity,
+    isEnabled,
+    getOpacity,
+    onEnabledChange,
+  };
   return { controls, destroy };
 }

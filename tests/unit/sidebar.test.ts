@@ -303,6 +303,7 @@ it("renders the float-box settings section with a working enable toggle and opac
     setOpacity: vi.fn(),
     isEnabled: vi.fn(() => true),
     getOpacity: vi.fn(() => 0.9),
+    onEnabledChange: vi.fn(() => () => {}),
   };
 
   renderSidebar(tabLabel, tabPane, [layer], controller, state, {
@@ -315,7 +316,7 @@ it("renders the float-box settings section with a working enable toggle and opac
   // The float-box section renders with its heading.
   const section = tabPane.querySelector(".nlsc-floatbox-settings") as HTMLElement;
   expect(section).toBeTruthy();
-  expect(section.querySelector("h4")?.textContent).toBe("懸浮圖層框");
+  expect(section.querySelector("h4")?.textContent).toBe("懸浮視窗");
 
   // Enable toggle reflects the current enabled state (isEnabled() === true).
   const checkbox = section.querySelector(

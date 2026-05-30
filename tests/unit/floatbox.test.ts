@@ -175,6 +175,43 @@ describe("mount / unmount (Req 1.1, 1.2, 5.4, 5.5)", () => {
   });
 });
 
+describe("header close button", () => {
+  const closeBtn = (root: HTMLElement) =>
+    root.querySelector(".nlsc-floatbox-close") as HTMLButtonElement | null;
+
+  it("renders a close button inside the header", () => {
+    const { root } = setup({ enabled: true });
+    const btn = closeBtn(root);
+    expect(btn).not.toBeNull();
+    expect(btn!.closest(".nlsc-floatbox-header")).not.toBeNull();
+  });
+
+  it("clicking it disables the box and removes it from the DOM", () => {
+    const { state, root, box } = setup({ enabled: true });
+    closeBtn(root)!.click();
+    expect(box()).toBeNull();
+    expect(state.floatBox.enabled).toBe(false);
+  });
+
+  it("notifies onEnabledChange subscribers when closed", () => {
+    const { handle, root } = setup({ enabled: true });
+    const listener = vi.fn();
+    handle.controls.onEnabledChange(listener);
+    closeBtn(root)!.click();
+    expect(listener).toHaveBeenCalledWith(false);
+  });
+
+  it("a pointerdown on the close button does not start a drag", () => {
+    const { box, root } = setup({ enabled: true, x: 200, y: 50 });
+    const btn = closeBtn(root)!;
+    firePointer(btn, "pointerdown", { clientX: 100, clientY: 100 });
+    firePointer(btn, "pointermove", { clientX: 300, clientY: 300 });
+    // Position is unchanged: the move never moved the box.
+    expect(box()!.style.left).toBe("200px");
+    expect(box()!.style.top).toBe("50px");
+  });
+});
+
 describe("opacity clamping applied to element.style.opacity (Req 4.1–4.6)", () => {
   it("clamps a below-range value up to 0.1 (0.05 → 0.1)", () => {
     const { handle, box } = setup({ enabled: true });

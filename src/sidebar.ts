@@ -12,7 +12,7 @@ export interface SidebarCallbacks {
   version?: string;
   /**
    * Imperative handle to the Floating Layer Box. When provided, the panel
-   * renders a "懸浮圖層框" section (enable toggle + opacity slider). Omitted by
+   * renders a "懸浮視窗" section (enable toggle + opacity slider). Omitted by
    * older callers / unit tests that don't exercise the box, in which case the
    * section is skipped entirely.
    */
@@ -22,7 +22,9 @@ export interface SidebarCallbacks {
 const STYLE_ID = "nlsc-styles";
 
 const NLSC_STYLES = `
-.nlsc-panel { font-size: 13px; }
+/* WME's registered script tab pane is a bare container with no inner padding,
+   so our content would otherwise hug both sidebar edges. Add our own gutter. */
+.nlsc-panel { font-size: 13px; padding: 0 12px; }
 .nlsc-panel h4 { margin: 8px 0 12px; font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
 
 .nlsc-add-row { display: flex; gap: 8px; margin: 0 0 12px; padding-bottom: 12px; border-bottom: 1px solid var(--hairline, rgba(128,128,128,0.2)); }
@@ -303,7 +305,7 @@ export function renderSidebar(
 }
 
 /**
- * "懸浮圖層框" settings section: an enable toggle and an opacity slider that
+ * "懸浮視窗" settings section: an enable toggle and an opacity slider that
  * drive the Floating Layer Box through its [[BoxControls]] handle. Reuses the
  * existing `.nlsc-toggle` pill switch and `.nlsc-slider` / `.nlsc-value`
  * styles, so no new CSS is required.
@@ -313,7 +315,7 @@ function renderFloatBoxSection(tabPane: HTMLElement, boxControls: BoxControls): 
   section.className = "nlsc-floatbox-settings";
 
   const heading = document.createElement("h4");
-  heading.textContent = "懸浮圖層框";
+  heading.textContent = "懸浮視窗";
   section.appendChild(heading);
 
   // Enable row: pill toggle + label. Mirrors the per-layer `.nlsc-toggle`.
@@ -322,7 +324,7 @@ function renderFloatBoxSection(tabPane: HTMLElement, boxControls: BoxControls): 
 
   const toggleLabel = document.createElement("label");
   toggleLabel.className = "nlsc-toggle";
-  toggleLabel.title = "顯示／隱藏懸浮圖層框";
+  toggleLabel.title = "顯示／隱藏懸浮視窗";
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
@@ -336,7 +338,7 @@ function renderFloatBoxSection(tabPane: HTMLElement, boxControls: BoxControls): 
 
   const enableText = document.createElement("span");
   enableText.className = "nlsc-name";
-  enableText.textContent = "顯示懸浮圖層框";
+  enableText.textContent = "顯示懸浮視窗";
 
   enableRow.appendChild(toggleLabel);
   enableRow.appendChild(enableText);
@@ -344,6 +346,12 @@ function renderFloatBoxSection(tabPane: HTMLElement, boxControls: BoxControls): 
 
   checkbox.addEventListener("change", () => {
     boxControls.setEnabled(checkbox.checked);
+  });
+
+  // Keep the toggle in sync when the box is closed from its own × button (or
+  // any other origin), so reopening from here always reflects the live state.
+  boxControls.onEnabledChange((enabled) => {
+    checkbox.checked = enabled;
   });
 
   // Opacity row: range slider (step 5 → ≤0.05 increments) + percentage label.
@@ -356,7 +364,7 @@ function renderFloatBoxSection(tabPane: HTMLElement, boxControls: BoxControls): 
   slider.max = "100";
   slider.step = "5";
   slider.className = "nlsc-slider";
-  slider.title = "懸浮圖層框透明度";
+  slider.title = "懸浮視窗透明度";
   slider.value = String(Math.round(boxControls.getOpacity() * 100));
 
   const valueLabel = document.createElement("span");
