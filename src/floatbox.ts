@@ -154,7 +154,7 @@ export function createFloatingBox(deps: FloatingBoxDeps): FloatingBoxHandle {
 
     const title = document.createElement("span");
     title.className = "nlsc-floatbox-title";
-    title.textContent = "NLSC 圖層";
+    title.textContent = "NLSC Overlay";
     header.appendChild(title);
 
     // Row container; populated by renderRows() in task 4.1.
