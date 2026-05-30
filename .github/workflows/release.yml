@@ -145,6 +145,16 @@ jobs:
           head -n 30 dist/wme-nlsc-overlay.user.js
           grep -q "^// @version *${{ steps.version.outputs.version }}$" dist/wme-nlsc-overlay.user.js
 
+      - name: Stage userscript for Greasy Fork sync
+        # Greasy Fork's sync fetches the script from git (it downloads the
+        # file at the configured raw repo path via git), NOT from the release
+        # asset. So the built userscript must be committed at the repo root
+        # for the webhook to pick up new versions. The file must already
+        # exist and be *modified* by the release commit (a first-time "added"
+        # file can fail to trigger the sync), which is why it is tracked in
+        # git rather than gitignored.
+        run: cp dist/wme-nlsc-overlay.user.js wme-nlsc-overlay.user.js
+
       - name: Generate release notes and update CHANGELOG.md
         run: |
           node scripts/generate-changelog.mjs \
@@ -168,7 +178,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add package.json package-lock.json metablock.json CHANGELOG.md
+          git add package.json package-lock.json metablock.json CHANGELOG.md wme-nlsc-overlay.user.js
           if git diff --cached --quiet; then
             echo "No version changes to commit (idempotent re-run?)."
           else
