@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Convert Long Python Inline Commands to Files",
+  "description": "Before executing a shell command, detect inline Python invocations (python -c \"...\", python3 -c \"...\", or heredoc-fed python) where the script body exceeds 20 lines. Reject and instruct the agent to write the script to a file first, then execute it.",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      "shell"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Inspect the shell command about to be executed. Determine whether it is an inline Python invocation, including any of these patterns:\n\n- `python -c \"...\"` or `python3 -c \"...\"` (also `.venv/bin/python -c \"...\"`, `uv run python -c \"...\"`, etc.)\n- Python fed via heredoc (e.g., `python <<'EOF' ... EOF`, `python3 <<PY ... PY`)\n- Any equivalent form where Python source is passed inline rather than read from a file\n\nCount the number of lines in the inline Python body (split on newlines, including blank lines). If the body is more than 20 lines:\n\n1. Reject the command.\n2. Instruct the agent to write the Python source to a file first using the file-writing tool. Pick a sensible path such as `scripts/<descriptive-name>.py` or a temporary file under the repo (e.g., `tmp/<name>.py`). Use `.py` extension.\n3. After writing the file, run it via the repo's virtual environment (e.g., `.venv/bin/python scripts/<name>.py` or `uv run python scripts/<name>.py`).\n4. Remind the agent to clean up any temporary script files after the task completes, per the verification guidelines.\n\nIf the inline Python body is 20 lines or fewer, approve the command without comment. Non-Python shell commands and Python commands that already invoke a script file are unaffected."
+  }
+}
