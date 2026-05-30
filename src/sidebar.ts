@@ -1,6 +1,7 @@
 import type { NlscLayer } from "./layers";
 import type { NlscState } from "./state";
 import type { NlscController } from "./controller";
+import type { BoxControls } from "./floatbox";
 import { renderTermsLink } from "./terms";
 
 export interface SidebarCallbacks {
@@ -9,6 +10,13 @@ export interface SidebarCallbacks {
   removeUserLayer: (code: string) => void;
   /** Script version from the userscript metablock; shown next to the heading. */
   version?: string;
+  /**
+   * Imperative handle to the Floating Layer Box. When provided, the panel
+   * renders a "懸浮圖層框" section (enable toggle + opacity slider). Omitted by
+   * older callers / unit tests that don't exercise the box, in which case the
+   * section is skipped entirely.
+   */
+  boxControls?: BoxControls;
 }
 
 const STYLE_ID = "nlsc-styles";
@@ -287,7 +295,84 @@ export function renderSidebar(
     placeholderOpt.selected = true;
   });
 
+  if (callbacks.boxControls) {
+    renderFloatBoxSection(tabPane, callbacks.boxControls);
+  }
+
   renderTermsLink(tabPane);
+}
+
+/**
+ * "懸浮圖層框" settings section: an enable toggle and an opacity slider that
+ * drive the Floating Layer Box through its [[BoxControls]] handle. Reuses the
+ * existing `.nlsc-toggle` pill switch and `.nlsc-slider` / `.nlsc-value`
+ * styles, so no new CSS is required.
+ */
+function renderFloatBoxSection(tabPane: HTMLElement, boxControls: BoxControls): void {
+  const section = document.createElement("div");
+  section.className = "nlsc-floatbox-settings";
+
+  const heading = document.createElement("h4");
+  heading.textContent = "懸浮圖層框";
+  section.appendChild(heading);
+
+  // Enable row: pill toggle + label. Mirrors the per-layer `.nlsc-toggle`.
+  const enableRow = document.createElement("div");
+  enableRow.className = "nlsc-row-header";
+
+  const toggleLabel = document.createElement("label");
+  toggleLabel.className = "nlsc-toggle";
+  toggleLabel.title = "顯示／隱藏懸浮圖層框";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = boxControls.isEnabled();
+
+  const toggleSlider = document.createElement("span");
+  toggleSlider.className = "nlsc-toggle-slider";
+
+  toggleLabel.appendChild(checkbox);
+  toggleLabel.appendChild(toggleSlider);
+
+  const enableText = document.createElement("span");
+  enableText.className = "nlsc-name";
+  enableText.textContent = "顯示懸浮圖層框";
+
+  enableRow.appendChild(toggleLabel);
+  enableRow.appendChild(enableText);
+  section.appendChild(enableRow);
+
+  checkbox.addEventListener("change", () => {
+    boxControls.setEnabled(checkbox.checked);
+  });
+
+  // Opacity row: range slider (step 5 → ≤0.05 increments) + percentage label.
+  const sliderRow = document.createElement("div");
+  sliderRow.className = "nlsc-slider-row";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "10";
+  slider.max = "100";
+  slider.step = "5";
+  slider.className = "nlsc-slider";
+  slider.title = "懸浮圖層框透明度";
+  slider.value = String(Math.round(boxControls.getOpacity() * 100));
+
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "nlsc-value";
+  valueLabel.textContent = `${slider.value}%`;
+
+  sliderRow.appendChild(slider);
+  sliderRow.appendChild(valueLabel);
+  section.appendChild(sliderRow);
+
+  slider.addEventListener("input", () => {
+    valueLabel.textContent = `${slider.value}%`;
+    boxControls.setOpacity(Number(slider.value) / 100);
+  });
+
+  tabPane.appendChild(section);
 }
 
 interface RowRefs {

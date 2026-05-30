@@ -3,6 +3,7 @@ import { NLSC_LAYERS, type NlscLayer } from "./layers";
 import { fetchCatalog } from "./catalog";
 import { loadState, saveState } from "./state";
 import { renderSidebar } from "./sidebar";
+import { createFloatingBox } from "./floatbox";
 import { NlscController, type LayerBinding } from "./controller";
 import { filterForColor } from "./tint";
 import { restackLayers } from "./restack";
@@ -192,6 +193,23 @@ const SCRIPT_VERSION =
   for (const l of NLSC_LAYERS) catalogByCode.set(l.code, l);
   catalog = [...catalogByCode.values()];
 
+  // Display-name resolver for the floating box, over the final merged catalog
+  // (NLSC_LAYERS ∪ catalog). Built after the merge so the box resolves names
+  // for both seed defaults and catalog layers. User layers added at runtime via
+  // addUserLayer are catalog layers and so are already present in this map.
+  const layerByCode = new Map<string, NlscLayer>();
+  for (const l of NLSC_LAYERS) layerByCode.set(l.code, l);
+  for (const l of catalog) if (!layerByCode.has(l.code)) layerByCode.set(l.code, l);
+
+  // Construct the floating layer box. It mounts immediately when
+  // state.floatBox.enabled is true (with a deferred-attach retry if
+  // document.body isn't ready yet), so no explicit mount call is needed.
+  const box = createFloatingBox({
+    controller,
+    state,
+    getLayer: (code) => layerByCode.get(code),
+  });
+
   const registerCatalogLayer = (
     layer: NlscLayer,
     visible: boolean,
@@ -374,5 +392,6 @@ const SCRIPT_VERSION =
     addUserLayer,
     removeUserLayer,
     version: SCRIPT_VERSION,
+    boxControls: box.controls,
   });
 })();

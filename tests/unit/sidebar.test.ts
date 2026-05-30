@@ -24,7 +24,7 @@ it("add-button appends a new row when a catalog option is selected", () => {
   const defaultLayer = makeLayer("EMAP5", "EMAP5 · jpeg · default");
   const catalogLayer = makeLayer("CATALOG_A", "CATALOG_A · jpeg · catalog A");
 
-  const state: NlscState = { visible: {}, opacity: {}, color: {}, aboveCode: null, userLayers: [], removedDefaults: [], layerOrder: [] };
+  const state: NlscState = { visible: {}, opacity: {}, color: {}, aboveCode: null, userLayers: [], removedDefaults: [], layerOrder: [], floatBox: { enabled: true, opacity: 0.9, x: null, y: null } };
   const controller = new NlscController(state, [
     {
       layer: defaultLayer,
@@ -92,6 +92,7 @@ it("shows the script version in the heading and renders a remove button on every
     userLayers: [],
     removedDefaults: [],
     layerOrder: ["EMAP5"],
+    floatBox: { enabled: true, opacity: 0.9, x: null, y: null },
   };
   const controller = new NlscController(state, [
     {
@@ -147,6 +148,7 @@ it('"above WME objects" icon button is radio-style: only one layer holds the slo
     userLayers: [],
     removedDefaults: [],
     layerOrder: ["A", "B"],
+    floatBox: { enabled: true, opacity: 0.9, x: null, y: null },
   };
   const controller = new NlscController(state, [
     { layer: a, setLayerVisible: vi.fn(), setLayerOpacity: vi.fn(), setLayerColor: vi.fn() },
@@ -207,6 +209,7 @@ it('"above WME objects" icon button hides on invisible layers and reappears on r
     userLayers: [],
     removedDefaults: [],
     layerOrder: ["EMAP5"],
+    floatBox: { enabled: true, opacity: 0.9, x: null, y: null },
   };
   const controller = new NlscController(state, [
     { layer, setLayerVisible: vi.fn(), setLayerOpacity: vi.fn(), setLayerColor: vi.fn() },
@@ -245,6 +248,7 @@ it('aboveCode is preserved when the pinned layer is hidden, restored on re-show'
     userLayers: [],
     removedDefaults: [],
     layerOrder: ["EMAP5"],
+    floatBox: { enabled: true, opacity: 0.9, x: null, y: null },
   };
   const controller = new NlscController(state, [
     { layer, setLayerVisible: vi.fn(), setLayerOpacity: vi.fn(), setLayerColor: vi.fn() },
@@ -271,4 +275,104 @@ it('aboveCode is preserved when the pinned layer is hidden, restored on re-show'
   controller.setVisible("EMAP5", true);
   expect(aboveBtn.style.display).toBe("");
   expect(aboveBtn.getAttribute("aria-pressed")).toBe("true");
+});
+
+it("renders the float-box settings section with a working enable toggle and opacity slider when boxControls is provided", () => {
+  const tabLabel = document.createElement("div");
+  const tabPane = document.createElement("div");
+  document.body.appendChild(tabPane);
+
+  const layer = makeLayer("EMAP5", "EMAP5");
+  const state: NlscState = {
+    visible: {},
+    opacity: {},
+    color: {},
+    aboveCode: null,
+    userLayers: [],
+    removedDefaults: [],
+    layerOrder: ["EMAP5"],
+    floatBox: { enabled: true, opacity: 0.9, x: null, y: null },
+  };
+  const controller = new NlscController(state, [
+    { layer, setLayerVisible: vi.fn(), setLayerOpacity: vi.fn(), setLayerColor: vi.fn() },
+  ]);
+
+  // Fake BoxControls handle backed by vi.fn() so we can assert wiring.
+  const boxControls = {
+    setEnabled: vi.fn(),
+    setOpacity: vi.fn(),
+    isEnabled: vi.fn(() => true),
+    getOpacity: vi.fn(() => 0.9),
+  };
+
+  renderSidebar(tabLabel, tabPane, [layer], controller, state, {
+    catalog: [layer],
+    addUserLayer: vi.fn(),
+    removeUserLayer: vi.fn(),
+    boxControls,
+  });
+
+  // The float-box section renders with its heading.
+  const section = tabPane.querySelector(".nlsc-floatbox-settings") as HTMLElement;
+  expect(section).toBeTruthy();
+  expect(section.querySelector("h4")?.textContent).toBe("懸浮圖層框");
+
+  // Enable toggle reflects the current enabled state (isEnabled() === true).
+  const checkbox = section.querySelector(
+    "label.nlsc-toggle input[type=checkbox]",
+  ) as HTMLInputElement;
+  expect(checkbox).toBeTruthy();
+  expect(checkbox.checked).toBe(true);
+
+  // Opacity slider is a range in [10, 100] step 5, positioned at 90% (0.9).
+  const slider = section.querySelector(
+    "input.nlsc-slider[type=range]",
+  ) as HTMLInputElement;
+  expect(slider).toBeTruthy();
+  expect(slider.min).toBe("10");
+  expect(slider.max).toBe("100");
+  expect(slider.step).toBe("5");
+  expect(slider.value).toBe("90");
+  const valueLabel = section.querySelector(".nlsc-value") as HTMLElement;
+  expect(valueLabel?.textContent).toBe("90%");
+
+  // Toggling the enable control off calls setEnabled(false).
+  checkbox.checked = false;
+  checkbox.dispatchEvent(new Event("change"));
+  expect(boxControls.setEnabled).toHaveBeenCalledWith(false);
+
+  // Sliding the opacity control updates setOpacity with the fraction and the label.
+  slider.value = "50";
+  slider.dispatchEvent(new Event("input"));
+  expect(boxControls.setOpacity).toHaveBeenCalledWith(0.5);
+  expect(valueLabel.textContent).toBe("50%");
+});
+
+it("does not render the float-box settings section when boxControls is omitted", () => {
+  const tabLabel = document.createElement("div");
+  const tabPane = document.createElement("div");
+  document.body.appendChild(tabPane);
+
+  const layer = makeLayer("EMAP5", "EMAP5");
+  const state: NlscState = {
+    visible: {},
+    opacity: {},
+    color: {},
+    aboveCode: null,
+    userLayers: [],
+    removedDefaults: [],
+    layerOrder: ["EMAP5"],
+    floatBox: { enabled: true, opacity: 0.9, x: null, y: null },
+  };
+  const controller = new NlscController(state, [
+    { layer, setLayerVisible: vi.fn(), setLayerOpacity: vi.fn(), setLayerColor: vi.fn() },
+  ]);
+
+  renderSidebar(tabLabel, tabPane, [layer], controller, state, {
+    catalog: [layer],
+    addUserLayer: vi.fn(),
+    removeUserLayer: vi.fn(),
+  });
+
+  expect(tabPane.querySelector(".nlsc-floatbox-settings")).toBeNull();
 });
