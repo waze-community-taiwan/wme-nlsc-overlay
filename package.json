@@ -5,6 +5,9 @@
   "license": "MIT",
   "private": true,
   "type": "module",
+  "overrides": {
+    "esbuild": "^0.28.1"
+  },
   "scripts": {
     "build": "rollup -c",
     "build:watch": "rollup -c -w",
@@ -19,13 +22,13 @@
     "@rollup/plugin-node-resolve": "^16.0.0",
     "@rollup/plugin-typescript": "^12.1.1",
     "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^3.2.4",
+    "@vitest/coverage-v8": "^3.2.6",
     "jsdom": "^27.0.1",
     "rollup": "^4.26.1",
     "rollup-plugin-userscript-metablock": "^0.4.3",
     "tslib": "^2.8.1",
     "typescript": "^5.7.2",
-    "vitest": "^3.2.4",
+    "vitest": "^3.2.6",
     "wme-sdk-typings": "https://web-assets.waze.com/wme_sdk_docs/production/v2.352-6-g0facb511a2/wme-sdk-typings.tgz"
   }
 }
