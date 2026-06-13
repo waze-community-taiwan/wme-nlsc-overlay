@@ -47,8 +47,12 @@ const SCRIPT_VERSION =
   const sdk = uw.getWmeSdk({ scriptId: SCRIPT_ID, scriptName: SCRIPT_NAME });
   console.log(`[${SCRIPT_ID}] wme ready`, sdk);
 
-  const OL = uw.OL;
-  const olMap = uw.W?.map?.olMap;
+  // WME exposes the OpenLayers 2.x namespace as `OpenLayers` (older builds also
+  // mirrored it as `OL`), and the OL map via the `W.map.getOLMap()` method
+  // (older builds exposed it as the `W.map.olMap` property). Probe both so the
+  // script keeps working across WME revisions.
+  const OL = uw.OL ?? uw.OpenLayers;
+  const olMap = uw.W?.map?.getOLMap?.() ?? uw.W?.map?.olMap;
   if (!OL || !olMap) {
     console.warn(`[${SCRIPT_ID}] OpenLayers or W.map.olMap unavailable; skipping tile registration`);
     return;

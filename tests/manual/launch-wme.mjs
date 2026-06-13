@@ -122,8 +122,9 @@ const wrappedUserscript = `(async () => {
   const ready = () =>
     typeof window.getWmeSdk === 'function' &&
     !!window.SDK_INITIALIZED &&
-    !!window.OL &&
-    !!window.W && !!window.W.map && !!window.W.map.olMap;
+    !!(window.OL || window.OpenLayers) &&
+    !!window.W && !!window.W.map &&
+    !!((window.W.map.getOLMap && window.W.map.getOLMap()) || window.W.map.olMap);
   while (!ready()) {
     await new Promise((r) => setTimeout(r, 100));
   }
