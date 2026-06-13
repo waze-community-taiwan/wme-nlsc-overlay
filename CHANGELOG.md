@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.4.1) — 2026-06-13
+
+[Compare `v0.4.0...v0.4.1`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.4.0...v0.4.1)
+
+### Bug Fixes
+
+- **deps:** patch Dependabot alerts for vitest and esbuild ([`9c98775`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/9c98775c73b59f5239deb334f3e1011ef01696e0))
+- resolve OpenLayers globals against current WME API ([`aa0e447`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/commit/aa0e4477f90b8672817c48d2ae670210df533ba0))
+
+**Install:** [`wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/download/v0.4.1/wme-nlsc-overlay.user.js) — open with Tampermonkey/Violentmonkey/Greasemonkey to install.
+Always-latest link: [`releases/latest/download/wme-nlsc-overlay.user.js`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/latest/download/wme-nlsc-overlay.user.js).
 ## [0.4.0](https://github.com/waze-community-taiwan/wme-nlsc-overlay/releases/tag/v0.4.0) — 2026-05-30
 
 [Compare `v0.3.0...v0.4.0`](https://github.com/waze-community-taiwan/wme-nlsc-overlay/compare/v0.3.0...v0.4.0)

@@ -2,7 +2,7 @@
 // @name        WME NLSC Overlay
 // @description Overlay Taiwan NLSC WMTS tiles in Waze Map Editor
 // @namespace   https://github.com/waze-community-taiwan/wme-nlsc-overlay
-// @version     0.4.0
+// @version     0.4.1
 // @author      Waze Community Taiwan
 // @license     MIT
 // @match       https://www.waze.com/*editor*
@@ -20,7 +20,7 @@
 (function () {
     'use strict';
 
-    const __SCRIPT_VERSION__ = "0.4.0";
+    const __SCRIPT_VERSION__ = "0.4.1";
 
     // NLSC WMTS template: https://wmts.nlsc.gov.tw/wmts/{LAYER}/default/GoogleMapsCompatible/{z}/{y}/{x}  (note: {y} before {x} — WMTS axis order, NOT slippy)
     const NLSC_ATTRIBUTION = "© 內政部國土測繪中心 NLSC";
@@ -1802,8 +1802,12 @@
         await uw.SDK_INITIALIZED;
         const sdk = uw.getWmeSdk({ scriptId: SCRIPT_ID, scriptName: SCRIPT_NAME });
         console.log(`[${SCRIPT_ID}] wme ready`, sdk);
-        const OL = uw.OL;
-        const olMap = uw.W?.map?.olMap;
+        // WME exposes the OpenLayers 2.x namespace as `OpenLayers` (older builds also
+        // mirrored it as `OL`), and the OL map via the `W.map.getOLMap()` method
+        // (older builds exposed it as the `W.map.olMap` property). Probe both so the
+        // script keeps working across WME revisions.
+        const OL = uw.OL ?? uw.OpenLayers;
+        const olMap = uw.W?.map?.getOLMap?.() ?? uw.W?.map?.olMap;
         if (!OL || !olMap) {
             console.warn(`[${SCRIPT_ID}] OpenLayers or W.map.olMap unavailable; skipping tile registration`);
             return;
